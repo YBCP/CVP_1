@@ -495,23 +495,28 @@ elif pagina == "📋 Programar Visita":
 
         if modo == "Manual":
             st.markdown('<div class="section-title">Buscar predio</div>', unsafe_allow_html=True)
-            col_s1, col_s2 = st.columns([2, 1])
-            with col_s1:
-                campo_busqueda = st.radio("Buscar por", ["REA", "CHIP"], horizontal=True)
-                valor_busqueda = st.text_input(f"Ingrese {campo_busqueda}")
-            with col_s2:
-                st.markdown("<br><br>", unsafe_allow_html=True)
-                buscar = st.button("🔍 Buscar predio", use_container_width=True)
+            campo_busqueda = st.radio("Buscar por", ["REA", "CHIP"], horizontal=True)
 
-            if buscar and valor_busqueda:
+            # Construir lista de opciones según campo
+            if campo_busqueda == "REA":
+                opciones = sorted(maestro["REA"].dropna().astype(str).str.strip().unique().tolist())
+            else:
+                opciones = sorted(maestro["CHIP"].dropna().astype(str).str.strip().unique().tolist()) if "CHIP" in maestro.columns else []
+
+            valor_busqueda = st.selectbox(
+                f"Escriba o seleccione {campo_busqueda}",
+                options=[""] + opciones,
+                index=0,
+                placeholder=f"Empiece a escribir el {campo_busqueda}...",
+                help=f"Escriba los primeros dígitos para filtrar la lista ({len(opciones):,} opciones)",
+            )
+
+            if valor_busqueda:
                 valor_busqueda = valor_busqueda.strip()
                 if campo_busqueda == "REA":
                     resultado_busq = maestro[maestro["REA"].str.strip() == valor_busqueda]
                 else:
-                    resultado_busq = maestro[
-                        maestro["CHIP"].str.strip() == valor_busqueda
-                        if "CHIP" in maestro.columns else pd.Series(False, index=maestro.index)
-                    ]
+                    resultado_busq = maestro[maestro["CHIP"].str.strip() == valor_busqueda] if "CHIP" in maestro.columns else pd.DataFrame()
 
                 if resultado_busq.empty:
                     st.warning(f"No se encontró ningún predio con {campo_busqueda} = '{valor_busqueda}'")
