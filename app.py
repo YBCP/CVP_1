@@ -24,11 +24,12 @@ TECNICOS_PATH   = DATA_DIR / "tecnicos.csv"
 FICHA_TEMPLATE  = FORMATOS_DIR / "208-REAS-Ft-30 FICHA TECNICA DE RECONOCIMIENTO v7.xlsx"
 INFORME_TEMPLATE= FORMATOS_DIR / "208-REAS-Ft-176 INFORME DE GESTION.docx"
 
-COLOR_PRIMARY = "#003366"
-COLOR_SECONDARY = "#005B96"
-COLOR_SUCCESS = "#28a745"
-COLOR_DANGER = "#dc3545"
-COLOR_WARNING = "#ffc107"
+COLOR_PRIMARY   = "#CC0000"   # Rojo CVP
+COLOR_SECONDARY = "#007A3D"   # Verde CVP
+COLOR_AMARILLO  = "#FFC300"   # Amarillo CVP
+COLOR_SUCCESS   = "#007A3D"
+COLOR_DANGER    = "#CC0000"
+COLOR_WARNING   = "#FFC300"
 
 CARGOS = [
     "Técnico Social",
@@ -75,6 +76,7 @@ st.markdown(
     /* Sidebar background */
     [data-testid="stSidebar"] {{
         background-color: {COLOR_PRIMARY};
+        border-right: 4px solid {COLOR_AMARILLO};
     }}
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] span,
@@ -123,7 +125,7 @@ st.markdown(
         color: {COLOR_PRIMARY};
         font-weight: 700;
         font-size: 1.1rem;
-        border-bottom: 2px solid {COLOR_SECONDARY};
+        border-bottom: 3px solid {COLOR_SECONDARY};
         padding-bottom: 4px;
         margin: 20px 0 12px;
     }}
@@ -211,6 +213,7 @@ def _empty_resultados():
             "TECNICOS", "RESULTADO", "OCUPACION", "PROP_CONTACTADO",
             "TIPO_CONSTRUCCION", "NUM_PISOS", "ESTADO_CONSERVACION",
             "LINDERO_NORTE", "LINDERO_SUR", "LINDERO_ORIENTE", "LINDERO_OCCIDENTE",
+            "TIPO_INMUEBLE", "ESTRATO", "UNIDADES_VIVIENDA",
             "MOTIVO_FALLIDA", "OBSERVACIONES", "FOTOS", "FECHA_REGISTRO",
         ]
     )
@@ -269,8 +272,7 @@ with st.sidebar:
     st.markdown(
         f"""
         <div style='text-align:center; padding: 10px 0 20px;'>
-            <div style='font-size:2.5rem;'>🏛️</div>
-            <div style='font-size:1.1rem; font-weight:700; color:white;'>CVP</div>
+            <div style='font-size:1.3rem; font-weight:700; color:white; letter-spacing:2px;'>CVP</div>
             <div style='font-size:0.75rem; color:#aac4e0;'>Caja de Vivienda Popular<br>Bogotá</div>
         </div>
         <hr style='border-color: #336699; margin: 0 0 12px;'>
@@ -281,13 +283,13 @@ with st.sidebar:
     pagina = st.radio(
         "Navegación",
         options=[
-            "🏠 Inicio",
-            "📋 Programar Visita",
+            "Inicio",
+            "Programar Visita",
             "Visitas Programadas",
-            "✅ Registrar Resultado",
-            "📄 Descargar Formato",
+            "Registrar Resultado",
+            "Descargar Formato",
             "Gestión de Técnicos",
-            "📈 Indicadores",
+            "Indicadores",
         ],
         label_visibility="collapsed",
     )
@@ -355,6 +357,10 @@ def generar_ficha_tecnica(res_row, vis_row, maestro_row):
     ws["S18"] = manzana         # MANZANA catastral
     ws["W18"] = lote            # LOTE catastral
     ws["A20"] = chip            # 2.9 CHIP CATASTRAL
+    ws["Z20"] = _str(res_row.get("ESTRATO", ""))         # 2.12 ESTRATO
+    ws["K28"] = _str(res_row.get("TIPO_INMUEBLE", ""))   # 3.1 TIPO INMUEBLE
+    ws["N29"] = _str(res_row.get("NUM_PISOS", ""))        # 3.2 NÚMERO DE PISOS
+    ws["S29"] = _str(res_row.get("UNIDADES_VIVIENDA", "")) # 3.3 UNIDADES VIVIENDA
     ws["F22"] = lind_n          # LINDERO NORTE
     ws["F23"] = lind_s          # LINDERO SUR
     ws["F24"] = lind_or         # LINDERO ORIENTE
@@ -386,6 +392,28 @@ def generar_informe_gestion(res_row, vis_row, maestro_row):
     tabla.rows[4].cells[1].text = tecnicos      # NOMBRE PROFESIONAL
     tabla.rows[6].cells[1].text = fecha_vis     # FECHA
 
+    # Table 1: firma — pre-llenar nombre y contrato del técnico
+    # Cargar datos del técnico desde tecnicos.csv para obtener contrato
+    try:
+        from pathlib import Path
+        import pandas as pd
+        tec_path = Path(__file__).parent / "data" / "tecnicos.csv"
+        tec_df = pd.read_csv(tec_path, encoding="utf-8-sig", dtype=str)
+        primer_tec = tecnicos.split("/")[0].strip()
+        tec_info = tec_df[tec_df["NOMBRE"].str.strip() == primer_tec]
+        contrato = tec_info["CONTRATO"].iloc[0].strip() if not tec_info.empty and "CONTRATO" in tec_info.columns and pd.notna(tec_info["CONTRATO"].iloc[0]) else ""
+    except Exception:
+        contrato = ""
+
+    firma_table = doc.tables[1]
+    # Cell [0,0]: firma + nombre técnico
+    firma_table.rows[0].cells[0].paragraphs[-1].clear()
+    firma_table.rows[0].cells[0].paragraphs[-1].add_run(tecnicos)
+    # Cell [0,1]: contrato
+    if contrato:
+        firma_table.rows[0].cells[1].paragraphs[-1].clear()
+        firma_table.rows[0].cells[1].paragraphs[-1].add_run(contrato)
+
     # Escribir en el párrafo vacío SIGUIENTE a "Descripción Gestión realizada:" (P05)
     desc_text = f"Motivo de visita fallida: {motivo}"
     if observ:
@@ -410,7 +438,7 @@ def generar_informe_gestion(res_row, vis_row, maestro_row):
 # ════════════════════════════════════════════════════════════════
 # PAGE: INICIO
 # ════════════════════════════════════════════════════════════════
-if pagina == "🏠 Inicio":
+if pagina == "Inicio":
     st.markdown(
         f"""
         <div class="cvp-header">
@@ -477,7 +505,7 @@ if pagina == "🏠 Inicio":
 # ════════════════════════════════════════════════════════════════
 # PAGE: PROGRAMAR VISITA
 # ════════════════════════════════════════════════════════════════
-elif pagina == "📋 Programar Visita":
+elif pagina == "Programar Visita":
     st.markdown(
         '<div class="cvp-header"><h1>Programar Visita Técnica</h1><p>Registre y programe visitas a predios del reasentamiento</p></div>',
         unsafe_allow_html=True,
@@ -524,7 +552,7 @@ elif pagina == "📋 Programar Visita":
                 )
             with col_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
-                agregar = st.button("➕ Agregar", use_container_width=True)
+                agregar = st.button("Agregar", use_container_width=True)
 
             # ── Agregar predio a la lista ──────────────────────────────
             if agregar and valor_busqueda:
@@ -562,11 +590,11 @@ elif pagina == "📋 Programar Visita":
                     predio_quitar = st.selectbox("Quitar predio de la lista", options=[""] + lista_actual, key="sel_quitar")
                 with col_rm2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("🗑️ Quitar", use_container_width=True) and predio_quitar:
+                    if st.button("Quitar", use_container_width=True) and predio_quitar:
                         st.session_state["lista_predios_manual"].remove(predio_quitar)
                         st.rerun()
 
-                if st.button("🧹 Limpiar toda la lista", use_container_width=False):
+                if st.button("Limpiar toda la lista", use_container_width=False):
                     st.session_state["lista_predios_manual"] = []
                     st.rerun()
 
@@ -643,7 +671,7 @@ elif pagina == "📋 Programar Visita":
                 )
                 st.session_state["asig_tecnicos"][rea] = tec_predio
 
-            if st.button("📅 Programar Visita(s)", use_container_width=True, key="btn_prog_rea"):
+            if st.button("Programar Visita(s)", use_container_width=True, key="btn_prog_rea"):
                 sin_tecnico = [r for r in predios_a_programar if not st.session_state["asig_tecnicos"].get(r)]
                 if sin_tecnico:
                     st.warning(f"Faltan técnicos en: {', '.join(sin_tecnico)}")
@@ -714,7 +742,7 @@ elif pagina == "📋 Programar Visita":
                 hora_sin = st.time_input("Hora estimada", value=time(8, 0), key="hora_sin")
                 obs_sin = st.text_area("Observaciones", height=80, key="obs_sin")
 
-            sub_sin = st.form_submit_button("📅 Programar Visita Sin REA", use_container_width=True)
+            sub_sin = st.form_submit_button("Programar Visita Sin REA", use_container_width=True)
 
         if sub_sin:
             if not dir_manual:
@@ -857,7 +885,7 @@ elif pagina == "Visitas Programadas":
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
             df_filtrado.to_excel(writer, index=False, sheet_name="Visitas")
         st.download_button(
-            "📥 Exportar a Excel",
+            "Exportar a Excel",
             data=buf.getvalue(),
             file_name=f"visitas_cvp_{date.today()}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -867,7 +895,7 @@ elif pagina == "Visitas Programadas":
 # ════════════════════════════════════════════════════════════════
 # PAGE: REGISTRAR RESULTADO
 # ════════════════════════════════════════════════════════════════
-elif pagina == "✅ Registrar Resultado":
+elif pagina == "Registrar Resultado":
     st.markdown(
         '<div class="cvp-header"><h1>Registrar Resultado de Visita</h1><p>Documente el resultado de una visita técnica programada</p></div>',
         unsafe_allow_html=True,
@@ -943,7 +971,7 @@ elif pagina == "✅ Registrar Resultado":
                             avaluo_fmt = str(avaluo)
                         st.markdown(f"**Avalúo:** {avaluo_fmt}")
 
-            st.info(f"📌 Esta es la **visita N° {num_predio}** a este predio.")
+            st.info(f"Esta es la **visita N° {num_predio}** a este predio.")
 
             # ── RESULTADO FORM ────────────────────────────────
             st.markdown('<div class="section-title">Resultado de la Visita</div>', unsafe_allow_html=True)
@@ -965,7 +993,7 @@ elif pagina == "✅ Registrar Resultado":
                 tec_display = "|".join(tecs_resultado)
 
                 if resultado == "Exitosa":
-                    rc1, rc2 = st.columns(2)
+                    rc1, rc2, rc3 = st.columns(3)
                     with rc1:
                         hora_ini = st.time_input("Hora inicio", value=time(9, 0))
                         ocupacion = st.selectbox("Ocupación", OCUPACIONES)
@@ -975,6 +1003,10 @@ elif pagina == "✅ Registrar Resultado":
                         hora_fin = st.time_input("Hora fin", value=time(10, 0))
                         prop_contactado = st.radio("Propietario contactado", ["Si", "No"], horizontal=True)
                         estado_cons = st.selectbox("Estado de conservación", ESTADOS_CONSERVACION)
+                    with rc3:
+                        tipo_inmueble = st.selectbox("Tipo de inmueble", ["Casa", "Casa Lote", "Institucional", "Industrial", "Bodega", "Garaje", "Oficina", "Lote"])
+                        estrato = st.selectbox("Estrato", ["1", "2", "3", "4", "5", "6"])
+                        unidades_vivienda = st.number_input("Unidades de vivienda", min_value=1, max_value=20, value=1, step=1)
 
                     st.markdown("**Linderos**")
                     lc1, lc2, lc3, lc4 = st.columns(4)
@@ -1007,9 +1039,11 @@ elif pagina == "✅ Registrar Resultado":
                     motivo_fallida = "|".join(motivos_sel)
                     hora_ini_f = hora_fin_f = ""
                     ocupacion = prop_contactado = tipo_const = num_pisos = estado_cons = ""
+                    tipo_inmueble = estrato = ""
+                    unidades_vivienda = 0
                     lindero_n = lindero_s = lindero_o = lindero_oc = ""
 
-                sub_res = st.form_submit_button("💾 Guardar Resultado", use_container_width=True)
+                sub_res = st.form_submit_button("Guardar Resultado", use_container_width=True)
 
             if sub_res:
                 # Build result row
@@ -1030,6 +1064,9 @@ elif pagina == "✅ Registrar Resultado":
                     "LINDERO_SUR": lindero_s if resultado == "Exitosa" else "",
                     "LINDERO_ORIENTE": lindero_o if resultado == "Exitosa" else "",
                     "LINDERO_OCCIDENTE": lindero_oc if resultado == "Exitosa" else "",
+                    "TIPO_INMUEBLE": tipo_inmueble if resultado == "Exitosa" else "",
+                    "ESTRATO": str(estrato) if resultado == "Exitosa" else "",
+                    "UNIDADES_VIVIENDA": str(int(unidades_vivienda)) if resultado == "Exitosa" else "",
                     "MOTIVO_FALLIDA": motivo_fallida if resultado == "Fallida" else "",
                     "OBSERVACIONES": observaciones,
                     "FOTOS": "",
@@ -1059,7 +1096,7 @@ elif pagina == "✅ Registrar Resultado":
 # ════════════════════════════════════════════════════════════════
 # PAGE: DESCARGAR FORMATO
 # ════════════════════════════════════════════════════════════════
-elif pagina == "📄 Descargar Formato":
+elif pagina == "Descargar Formato":
     st.markdown(
         '<div class="cvp-header"><h1>Descargar Formato Oficial</h1>'
         '<p>Descargue el formato pre-diligenciado según el resultado de la visita</p></div>',
@@ -1101,9 +1138,9 @@ elif pagina == "📄 Descargar Formato":
             # ── Vista previa ──────────────────────────────────────────────
             st.markdown('<div class="section-title">Datos de la visita</div>', unsafe_allow_html=True)
             if resultado_val == "Exitosa":
-                st.markdown('<div class="banner-exitosa">✅ VISITA EXITOSA — Formato: Ficha Técnica de Reconocimiento</div>', unsafe_allow_html=True)
+                st.markdown('<div class="banner-exitosa">VISITA EXITOSA — Formato: Ficha Técnica de Reconocimiento</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="banner-fallida">❌ VISITA FALLIDA — Formato: Informe de Gestión</div>', unsafe_allow_html=True)
+                st.markdown('<div class="banner-fallida">VISITA FALLIDA — Formato: Informe de Gestión</div>', unsafe_allow_html=True)
 
             pv1, pv2, pv3 = st.columns(3)
             with pv1:
@@ -1127,10 +1164,10 @@ elif pagina == "📄 Descargar Formato":
                 if not FICHA_TEMPLATE.exists():
                     st.error(f"No se encontró la plantilla: {FICHA_TEMPLATE}")
                 else:
-                    if st.button("📥 Generar Ficha Técnica (XLSX)", use_container_width=True):
+                    if st.button("Generar Ficha Técnica (XLSX)", use_container_width=True):
                         xlsx_bytes = generar_ficha_tecnica(res_row, vis_row, maestro_row)
                         st.download_button(
-                            label="⬇️ Descargar 208-REAS-Ft-30 Ficha Técnica",
+                            label="Descargar 208-REAS-Ft-30 Ficha Técnica",
                             data=xlsx_bytes,
                             file_name=f"FichaTecnica_{num_visita_pdf}_{rea_pdf}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1141,10 +1178,10 @@ elif pagina == "📄 Descargar Formato":
                 if not INFORME_TEMPLATE.exists():
                     st.error(f"No se encontró la plantilla: {INFORME_TEMPLATE}")
                 else:
-                    if st.button("📥 Generar Informe de Gestión (DOCX)", use_container_width=True):
+                    if st.button("Generar Informe de Gestión (DOCX)", use_container_width=True):
                         docx_bytes = generar_informe_gestion(res_row, vis_row, maestro_row)
                         st.download_button(
-                            label="⬇️ Descargar 208-REAS-Ft-176 Informe de Gestión",
+                            label="Descargar 208-REAS-Ft-176 Informe de Gestión",
                             data=docx_bytes,
                             file_name=f"InformeGestion_{num_visita_pdf}_{rea_pdf}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1197,7 +1234,7 @@ elif pagina == "Gestión de Técnicos":
             nuevo_email = st.text_input("Correo electrónico")
             nuevo_activo = st.checkbox("Activo", value=True)
 
-        sub_tec = st.form_submit_button("➕ Agregar Técnico", use_container_width=True)
+        sub_tec = st.form_submit_button("Agregar Técnico", use_container_width=True)
 
     if sub_tec:
         if not nuevo_nombre:
@@ -1230,7 +1267,7 @@ elif pagina == "Gestión de Técnicos":
 # ════════════════════════════════════════════════════════════════
 # PAGE: INDICADORES
 # ════════════════════════════════════════════════════════════════
-elif pagina == "📈 Indicadores":
+elif pagina == "Indicadores":
     st.markdown(
         '<div class="cvp-header"><h1>Indicadores de Gestión</h1><p>Análisis y estadísticas del programa de visitas técnicas</p></div>',
         unsafe_allow_html=True,
