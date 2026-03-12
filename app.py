@@ -494,62 +494,79 @@ elif pagina == "📋 Programar Visita":
         predios_seleccionados = []
 
         if modo == "Manual":
-            st.markdown('<div class="section-title">Buscar predio</div>', unsafe_allow_html=True)
-            campo_busqueda = st.radio("Buscar por", ["REA", "CHIP"], horizontal=True)
+            # ── Inicializar lista acumulable en session_state ──────────
+            if "lista_predios_manual" not in st.session_state:
+                st.session_state["lista_predios_manual"] = []
 
-            # Construir lista de opciones según campo
+            st.markdown('<div class="section-title">Agregar predios a la visita</div>', unsafe_allow_html=True)
+
+            campo_busqueda = st.radio("Buscar por", ["REA", "CHIP"], horizontal=True, key="campo_busq_manual")
+
             if campo_busqueda == "REA":
                 opciones = sorted(maestro["REA"].dropna().astype(str).str.strip().unique().tolist())
             else:
                 opciones = sorted(maestro["CHIP"].dropna().astype(str).str.strip().unique().tolist()) if "CHIP" in maestro.columns else []
 
-            valor_busqueda = st.selectbox(
-                f"Escriba o seleccione {campo_busqueda}",
-                options=[""] + opciones,
-                index=0,
-                placeholder=f"Empiece a escribir el {campo_busqueda}...",
-                help=f"Escriba los primeros dígitos para filtrar la lista ({len(opciones):,} opciones)",
-            )
+            col_sel, col_btn = st.columns([4, 1])
+            with col_sel:
+                valor_busqueda = st.selectbox(
+                    f"Escriba o seleccione {campo_busqueda}",
+                    options=[""] + opciones,
+                    index=0,
+                    placeholder=f"Empiece a escribir el {campo_busqueda}...",
+                    help=f"Escriba los primeros dígitos para filtrar ({len(opciones):,} opciones)",
+                    key="sel_busq_manual",
+                )
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                agregar = st.button("➕ Agregar", use_container_width=True)
 
-            if valor_busqueda:
-                valor_busqueda = valor_busqueda.strip()
-                if campo_busqueda == "REA":
-                    resultado_busq = maestro[maestro["REA"].str.strip() == valor_busqueda]
+            # ── Agregar predio a la lista ──────────────────────────────
+            if agregar and valor_busqueda:
+                rea_a_agregar = valor_busqueda.strip()
+                if campo_busqueda == "CHIP":
+                    match = maestro[maestro["CHIP"].str.strip() == rea_a_agregar] if "CHIP" in maestro.columns else pd.DataFrame()
+                    rea_a_agregar = match["REA"].iloc[0] if not match.empty and pd.notna(match["REA"].iloc[0]) else rea_a_agregar
+                if rea_a_agregar in st.session_state["lista_predios_manual"]:
+                    st.warning(f"El predio **{rea_a_agregar}** ya está en la lista.")
                 else:
-                    resultado_busq = maestro[maestro["CHIP"].str.strip() == valor_busqueda] if "CHIP" in maestro.columns else pd.DataFrame()
+                    st.session_state["lista_predios_manual"].append(rea_a_agregar)
+                    st.success(f"✓ Predio **{rea_a_agregar}** agregado.")
 
-                if resultado_busq.empty:
-                    st.warning(f"No se encontró ningún predio con {campo_busqueda} = '{valor_busqueda}'")
-                else:
-                    st.success(f"✓ Se encontró {len(resultado_busq)} predio(s)")
-                    show_cols = [
-                        c for c in [
-                            "REA", "CHIP", "CHIP_VALIDADO", "CODIGO_LOTE",
-                            "LOCALIDAD", "BARRIO", "DIRECCION", "ESTADO_REA",
-                        ] if c in resultado_busq.columns
-                    ]
-                    display_df = resultado_busq[show_cols].copy()
+            # ── Mostrar lista acumulada ────────────────────────────────
+            lista_actual = st.session_state["lista_predios_manual"]
+            if lista_actual:
+                st.markdown(f'<div class="section-title">Predios en esta visita ({len(lista_actual)})</div>', unsafe_allow_html=True)
 
-                    # Maps links
-                    if "LATITUD" in resultado_busq.columns and "LONGITUD" in resultado_busq.columns:
-                        def make_link(row):
-                            lat, lon = row.get("LATITUD"), row.get("LONGITUD")
-                            if pd.notna(lat) and pd.notna(lon):
-                                return f"https://www.google.com/maps?q={lat},{lon}"
-                            elif "ENLACE_MAPS" in row.index and pd.notna(row.get("ENLACE_MAPS")):
-                                return row["ENLACE_MAPS"]
-                            return ""
-                        display_df["MAPA"] = resultado_busq.apply(make_link, axis=1)
+                show_cols = [c for c in ["REA", "CHIP", "CHIP_VALIDADO", "LOCALIDAD", "BARRIO", "DIRECCION", "ESTADO_REA"] if c in maestro.columns]
+                df_lista = maestro[maestro["REA"].isin(lista_actual)][show_cols].copy()
 
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                # Agregar predios sin REA en maestro (sin REA) si los hay
+                reas_no_en_maestro = [r for r in lista_actual if r not in maestro["REA"].values]
+                if reas_no_en_maestro:
+                    extras = pd.DataFrame([{"REA": r} for r in reas_no_en_maestro])
+                    df_lista = pd.concat([df_lista, extras], ignore_index=True)
 
-                    if "ENLACE_MAPS" in resultado_busq.columns:
-                        link = resultado_busq["ENLACE_MAPS"].iloc[0]
-                        if pd.notna(link) and link:
-                            st.markdown(f"🗺️ [Ver en Google Maps]({link})")
+                # Columna para eliminar
+                df_lista[""] = "🗑️"
+                st.dataframe(df_lista, use_container_width=True, hide_index=True)
 
-                    predios_seleccionados = resultado_busq["REA"].tolist()
-                    st.session_state["predios_prog_manual"] = predios_seleccionados
+                # Eliminar predio individual
+                col_rm1, col_rm2 = st.columns([3, 1])
+                with col_rm1:
+                    predio_quitar = st.selectbox("Quitar predio de la lista", options=[""] + lista_actual, key="sel_quitar")
+                with col_rm2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("🗑️ Quitar", use_container_width=True) and predio_quitar:
+                        st.session_state["lista_predios_manual"].remove(predio_quitar)
+                        st.rerun()
+
+                if st.button("🧹 Limpiar toda la lista", use_container_width=False):
+                    st.session_state["lista_predios_manual"] = []
+                    st.rerun()
+
+            predios_seleccionados = lista_actual
+            st.session_state["predios_prog_manual"] = predios_seleccionados
 
         else:  # Carga masiva
             st.markdown('<div class="section-title">Carga masiva desde Excel</div>', unsafe_allow_html=True)
@@ -644,6 +661,7 @@ elif pagina == "📋 Programar Visita":
                         f"✅ {len(nuevas)} visita(s) programada(s) exitosamente.\n\n"
                         f"Números asignados: {', '.join(nums_asignados)}"
                     )
+                    st.session_state["lista_predios_manual"] = []
 
     # ── TAB SIN REA ──────────────────────────────────────────────
     with tab_sin_rea:
