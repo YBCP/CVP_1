@@ -608,29 +608,46 @@ elif pagina == "📋 Programar Visita":
 
         if predios_a_programar:
             st.markdown('<div class="section-title">Datos de programación</div>', unsafe_allow_html=True)
-            with st.form("form_prog_rea"):
-                fcol1, fcol2 = st.columns(2)
-                with fcol1:
-                    fecha_prog = st.date_input("Fecha programada", value=date.today())
-                    tecnicos_sel = st.multiselect(
-                        "Técnicos asignados",
-                        options=tecnicos_activos,
-                        help="Seleccione uno o más técnicos",
-                    )
-                with fcol2:
-                    hora_est = st.time_input("Hora estimada", value=time(8, 0))
-                    obs_prog = st.text_area("Observaciones de programación", height=100)
 
-                submitted_rea = st.form_submit_button("📅 Programar Visita(s)", use_container_width=True)
+            # ── Fecha / hora / observaciones (comunes) ─────────────────
+            gcol1, gcol2 = st.columns(2)
+            with gcol1:
+                fecha_prog = st.date_input("Fecha programada", value=date.today(), key="fecha_prog_rea")
+                hora_est   = st.time_input("Hora estimada", value=time(8, 0), key="hora_prog_rea")
+            with gcol2:
+                obs_prog = st.text_area("Observaciones de programación", height=100, key="obs_prog_rea")
 
-            if submitted_rea:
-                if not tecnicos_sel:
-                    st.warning("Seleccione al menos un técnico.")
+            # ── Técnico por predio ─────────────────────────────────────
+            st.markdown('<div class="section-title">Asignación de técnico por predio</div>', unsafe_allow_html=True)
+            st.caption("Seleccione el técnico responsable de cada predio. Puede cambiar la asignación antes de confirmar.")
+
+            # Inicializar asignaciones en session_state
+            if "asig_tecnicos" not in st.session_state:
+                st.session_state["asig_tecnicos"] = {}
+
+            for rea in predios_a_programar:
+                info = maestro[maestro["REA"] == rea]
+                dir_label = info["DIRECCION"].iloc[0] if not info.empty and pd.notna(info["DIRECCION"].iloc[0]) else ""
+                label = f"{rea}" + (f"  —  {dir_label}" if dir_label else "")
+                prev = st.session_state["asig_tecnicos"].get(rea, [])
+                tec_predio = st.multiselect(
+                    label,
+                    options=tecnicos_activos,
+                    default=[t for t in prev if t in tecnicos_activos],
+                    key=f"tec_predio_{rea}",
+                )
+                st.session_state["asig_tecnicos"][rea] = tec_predio
+
+            if st.button("📅 Programar Visita(s)", use_container_width=True, key="btn_prog_rea"):
+                sin_tecnico = [r for r in predios_a_programar if not st.session_state["asig_tecnicos"].get(r)]
+                if sin_tecnico:
+                    st.warning(f"Faltan técnicos en: {', '.join(sin_tecnico)}")
                 else:
                     visitas_df = load_visitas()
                     nuevas = []
                     nums_asignados = []
                     for rea in predios_a_programar:
+                        tecs = st.session_state["asig_tecnicos"].get(rea, [])
                         num_visita = next_num_visita(visitas_df)
                         num_predio = count_visitas_predio(visitas_df, rea) + 1
                         nueva = {
@@ -641,7 +658,7 @@ elif pagina == "📋 Programar Visita":
                             "DIRECCION_MANUAL": "",
                             "LATITUD_MANUAL": "",
                             "LONGITUD_MANUAL": "",
-                            "TECNICOS": "|".join(tecnicos_sel),
+                            "TECNICOS": "|".join(tecs),
                             "ESTADO": "Pendiente",
                             "NUM_VISITA_PREDIO": str(num_predio),
                             "FECHA_REGISTRO": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -649,19 +666,17 @@ elif pagina == "📋 Programar Visita":
                         }
                         nuevas.append(nueva)
                         nums_asignados.append(num_visita)
-                        # Update in-memory df to keep sequential numbering correct
-                        visitas_df = pd.concat(
-                            [visitas_df, pd.DataFrame([nueva])], ignore_index=True
-                        )
+                        visitas_df = pd.concat([visitas_df, pd.DataFrame([nueva])], ignore_index=True)
 
                     save_visitas(visitas_df)
                     st.session_state["predios_prog_manual"] = []
                     st.session_state["predios_prog_masiva"] = []
+                    st.session_state["lista_predios_manual"] = []
+                    st.session_state["asig_tecnicos"] = {}
                     st.success(
                         f"✅ {len(nuevas)} visita(s) programada(s) exitosamente.\n\n"
                         f"Números asignados: {', '.join(nums_asignados)}"
                     )
-                    st.session_state["lista_predios_manual"] = []
 
     # ── TAB SIN REA ──────────────────────────────────────────────
     with tab_sin_rea:
@@ -940,7 +955,17 @@ elif pagina == "✅ Registrar Resultado":
                 resultado = st.radio("Resultado", ["Exitosa", "Fallida"], horizontal=True)
 
                 fecha_visita = st.date_input("Fecha de visita", value=date.today())
-                tec_display = visita_sel.get("TECNICOS", "")
+
+                # Técnicos programados como default, editables
+                tecs_programados = [t.strip() for t in str(visita_sel.get("TECNICOS", "")).split("|") if t.strip()]
+                tecs_validos = [t for t in tecs_programados if t in tecnicos_activos]
+                tecs_resultado = st.multiselect(
+                    "Técnico(s) que realizaron la visita",
+                    options=tecnicos_activos,
+                    default=tecs_validos,
+                    help="Pre-cargado con los técnicos programados. Modifique si hubo cambios.",
+                )
+                tec_display = "|".join(tecs_resultado)
 
                 if resultado == "Exitosa":
                     rc1, rc2 = st.columns(2)
