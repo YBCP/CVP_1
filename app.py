@@ -76,10 +76,10 @@ st.markdown(
     [data-testid="stSidebar"] {{
         background-color: {COLOR_PRIMARY};
     }}
-    [data-testid="stSidebar"] * {{
-        color: white !important;
-    }}
-    [data-testid="stSidebar"] .stRadio label {{
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] label {{
         color: white !important;
     }}
     /* Header strip */
@@ -283,10 +283,10 @@ with st.sidebar:
         options=[
             "🏠 Inicio",
             "📋 Programar Visita",
-            "📊 Visitas Programadas",
+            "Visitas Programadas",
             "✅ Registrar Resultado",
             "📄 Descargar Formato",
-            "👥 Gestión de Técnicos",
+            "Gestión de Técnicos",
             "📈 Indicadores",
         ],
         label_visibility="collapsed",
@@ -474,7 +474,7 @@ if pagina == "🏠 Inicio":
 # ════════════════════════════════════════════════════════════════
 elif pagina == "📋 Programar Visita":
     st.markdown(
-        '<div class="cvp-header"><h1>📋 Programar Visita Técnica</h1><p>Registre y programe visitas a predios del reasentamiento</p></div>',
+        '<div class="cvp-header"><h1>Programar Visita Técnica</h1><p>Registre y programe visitas a predios del reasentamiento</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -741,9 +741,9 @@ elif pagina == "📋 Programar Visita":
 # ════════════════════════════════════════════════════════════════
 # PAGE: VISITAS PROGRAMADAS
 # ════════════════════════════════════════════════════════════════
-elif pagina == "📊 Visitas Programadas":
+elif pagina == "Visitas Programadas":
     st.markdown(
-        '<div class="cvp-header"><h1>📊 Visitas Programadas</h1><p>Consulte y filtre el historial de visitas programadas</p></div>',
+        '<div class="cvp-header"><h1>Visitas Programadas</h1><p>Consulte y filtre el historial de visitas programadas</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -845,20 +845,7 @@ elif pagina == "📊 Visitas Programadas":
         ]
         display_df = df_filtrado[show_cols].copy()
 
-        def color_estado(val):
-            if val == "Exitosa":
-                return "background-color: #d4edda; color: #155724;"
-            elif val == "Fallida":
-                return "background-color: #f8d7da; color: #721c24;"
-            elif val == "Pendiente":
-                return "background-color: #fff3cd; color: #856404;"
-            return ""
-
-        if "ESTADO" in display_df.columns:
-            styled = display_df.style.applymap(color_estado, subset=["ESTADO"])
-            st.dataframe(styled, use_container_width=True, hide_index=True)
-        else:
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         # ── EXPORT ────────────────────────────────────────────
         buf = io.BytesIO()
@@ -877,13 +864,18 @@ elif pagina == "📊 Visitas Programadas":
 # ════════════════════════════════════════════════════════════════
 elif pagina == "✅ Registrar Resultado":
     st.markdown(
-        '<div class="cvp-header"><h1>✅ Registrar Resultado de Visita</h1><p>Documente el resultado de una visita técnica programada</p></div>',
+        '<div class="cvp-header"><h1>Registrar Resultado de Visita</h1><p>Documente el resultado de una visita técnica programada</p></div>',
         unsafe_allow_html=True,
     )
 
     visitas = load_visitas()
     maestro = load_maestro()
     resultados = load_resultados()
+    tecnicos_df = load_tecnicos()
+    tecnicos_activos = (
+        tecnicos_df[tecnicos_df["ACTIVO"] == True]["NOMBRE"].tolist()
+        if not tecnicos_df.empty else []
+    )
 
     if visitas.empty:
         st.info("No hay visitas programadas. Programe una visita primero.")
@@ -1064,7 +1056,7 @@ elif pagina == "✅ Registrar Resultado":
 # ════════════════════════════════════════════════════════════════
 elif pagina == "📄 Descargar Formato":
     st.markdown(
-        '<div class="cvp-header"><h1>📄 Descargar Formato Oficial</h1>'
+        '<div class="cvp-header"><h1>Descargar Formato Oficial</h1>'
         '<p>Descargue el formato pre-diligenciado según el resultado de la visita</p></div>',
         unsafe_allow_html=True,
     )
@@ -1159,9 +1151,9 @@ elif pagina == "📄 Descargar Formato":
 # ════════════════════════════════════════════════════════════════
 # PAGE: GESTIÓN DE TÉCNICOS
 # ════════════════════════════════════════════════════════════════
-elif pagina == "👥 Gestión de Técnicos":
+elif pagina == "Gestión de Técnicos":
     st.markdown(
-        '<div class="cvp-header"><h1>👥 Gestión de Técnicos</h1><p>Administre el equipo técnico de reasentamientos</p></div>',
+        '<div class="cvp-header"><h1>Gestión de Técnicos</h1><p>Administre el equipo técnico de reasentamientos</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -1235,7 +1227,7 @@ elif pagina == "👥 Gestión de Técnicos":
 # ════════════════════════════════════════════════════════════════
 elif pagina == "📈 Indicadores":
     st.markdown(
-        '<div class="cvp-header"><h1>📈 Indicadores de Gestión</h1><p>Análisis y estadísticas del programa de visitas técnicas</p></div>',
+        '<div class="cvp-header"><h1>Indicadores de Gestión</h1><p>Análisis y estadísticas del programa de visitas técnicas</p></div>',
         unsafe_allow_html=True,
     )
 
