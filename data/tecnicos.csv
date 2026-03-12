@@ -1,0 +1,9 @@
+ID_TECNICO,NOMBRE,CARGO,EMAIL,ACTIVO
+T001,Alejandro Morales Gómez,Profesional Social,a.morales@cvp.gov.co,True
+T002,Sandra Patricia Roa Hernández,Técnico Social,s.roa@cvp.gov.co,True
+T003,Carlos Eduardo Vargas Torres,Profesional Jurídico,c.vargas@cvp.gov.co,True
+T004,Lucía Fernanda Castillo Peña,Técnico Jurídico,l.castillo@cvp.gov.co,True
+T005,Jhon Fredy Bermúdez Salcedo,Técnico Predial,j.bermudez@cvp.gov.co,True
+T006,Mónica Andrea Suárez Niño,Profesional Social,m.suarez@cvp.gov.co,True
+T007,Rafael Enrique Pineda Ávila,Técnico Predial,r.pineda@cvp.gov.co,False
+T008,Diana Carolina Ospina Díaz,Técnico Social,d.ospina@cvp.gov.co,True
