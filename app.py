@@ -386,14 +386,19 @@ def generar_informe_gestion(res_row, vis_row, maestro_row):
     tabla.rows[4].cells[1].text = tecnicos      # NOMBRE PROFESIONAL
     tabla.rows[6].cells[1].text = fecha_vis     # FECHA
 
-    # Párrafo de descripción gestión (P04 index 4)
-    desc_text = f"Motivo visita fallida: {motivo}"
+    # Escribir en el párrafo vacío SIGUIENTE a "Descripción Gestión realizada:" (P05)
+    desc_text = f"Motivo de visita fallida: {motivo}"
     if observ:
         desc_text += "\n\nObservaciones: " + observ
-    for p in doc.paragraphs:
+    paragraphs = doc.paragraphs
+    for idx, p in enumerate(paragraphs):
         if "Descripci" in p.text and "Gesti" in p.text:
-            p.runs[0].text = "" if p.runs else ""
-            p.add_run(desc_text)
+            # El recuadro de texto está en los párrafos vacíos siguientes (P05 en adelante)
+            siguiente = idx + 1
+            if siguiente < len(paragraphs):
+                target = paragraphs[siguiente]
+                target.clear()
+                target.add_run(desc_text)
             break
 
     buf = io.BytesIO()
