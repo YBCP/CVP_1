@@ -577,7 +577,6 @@ if pagina == "Inicio":
     visitas    = load_visitas()
     resultados = load_resultados()
 
-    total_predios     = len(maestro)
     total_programadas = len(visitas) if not visitas.empty else 0
 
     if not visitas.empty and "ESTADO" in visitas.columns:
@@ -590,55 +589,43 @@ if pagina == "Inicio":
     total_realizadas = total_exitosas + total_fallidas
     pct_exito = round(total_exitosas / total_realizadas * 100, 1) if total_realizadas > 0 else 0
 
+    visitas_esta_semana = 0
     rend_semanal = 0.0
     if not visitas.empty and "FECHA_PROGRAMADA" in visitas.columns:
-        v_rend = visitas.copy()
-        v_rend["_fd"] = pd.to_datetime(v_rend["FECHA_PROGRAMADA"], errors="coerce")
+        v_tmp = visitas.copy()
+        v_tmp["_fd"] = pd.to_datetime(v_tmp["FECHA_PROGRAMADA"], errors="coerce")
+        lunes = pd.Timestamp(date.today()) - pd.Timedelta(days=date.today().weekday())
+        visitas_esta_semana = int((v_tmp["_fd"] >= lunes).sum())
         cutoff = pd.Timestamp(date.today()) - pd.Timedelta(weeks=4)
-        v_rend = v_rend[v_rend["_fd"] >= cutoff]
+        v_rend = v_tmp[v_tmp["_fd"] >= cutoff]
         if not v_rend.empty:
             semanas = v_rend["_fd"].dt.to_period("W").nunique()
             rend_semanal = round(len(v_rend) / max(semanas, 1), 1)
 
-    c1, c2, c3, c4 = st.columns(4)
-    kpis_r1 = [
-        (c1, total_predios,     "Total Predios",        "🗂️",  COLOR_PRIMARY),
-        (c2, total_programadas, "Visitas Programadas",  "📋",  "#1565C0"),
-        (c3, total_realizadas,  "Visitas Realizadas",   "✅",  COLOR_SUCCESS),
-        (c4, total_pendientes,  "Visitas Pendientes",   "⏳",  "#E65100"),
-    ]
-    for col, val, label, icon, color in kpis_r1:
-        with col:
-            st.markdown(
-                f"""<div style="background:white;border-left:5px solid {color};border-radius:8px;
-                    padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.09);text-align:center;margin-bottom:4px;">
-                    <div style="font-size:1.6rem;">{icon}</div>
-                    <div style="font-size:2rem;font-weight:800;color:{color};">{val:,}</div>
-                    <div style="font-size:0.82rem;color:#555;margin-top:2px;">{label}</div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+    def _kpi(col, val, label, color, icon):
+        col.markdown(
+            f"""<div style="background:white;border-top:4px solid {color};border-radius:10px;
+                padding:20px 16px 14px;box-shadow:0 3px 10px rgba(0,0,0,0.07);text-align:center;">
+                <div style="font-size:1.5rem;margin-bottom:4px;">{icon}</div>
+                <div style="font-size:2.1rem;font-weight:800;color:{color};line-height:1.1;">{val}</div>
+                <div style="font-size:0.78rem;color:#666;margin-top:5px;letter-spacing:0.3px;">{label}</div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    _kpi(c1, f"{total_programadas:,}", "Visitas Programadas", "#1565C0", "📋")
+    _kpi(c2, f"{total_realizadas:,}", "Visitas Realizadas", COLOR_SUCCESS, "✅")
+    _kpi(c3, f"{total_pendientes:,}", "Visitas Pendientes", "#E65100", "⏳")
+    _kpi(c4, f"{visitas_esta_semana:,}", "Esta Semana", "#6A1B9A", "📅")
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
     c5, c6, c7, c8 = st.columns(4)
-    kpis_r2 = [
-        (c5, total_exitosas,  "Visitas Exitosas",              "🟢", COLOR_SUCCESS),
-        (c6, total_fallidas,  "Visitas Fallidas",              "🔴", COLOR_DANGER),
-        (c7, f"{pct_exito}%", "Porcentaje de Éxito",          "🎯", "#6A1B9A"),
-        (c8, rend_semanal,    "Prom. Visitas/Semana (1 mes)", "📈", "#00695C"),
-    ]
-    for col, val, label, icon, color in kpis_r2:
-        with col:
-            st.markdown(
-                f"""<div style="background:white;border-left:5px solid {color};border-radius:8px;
-                    padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.09);text-align:center;margin-bottom:4px;">
-                    <div style="font-size:1.6rem;">{icon}</div>
-                    <div style="font-size:2rem;font-weight:800;color:{color};">{val}</div>
-                    <div style="font-size:0.82rem;color:#555;margin-top:2px;">{label}</div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+    _kpi(c5, f"{total_exitosas:,}", "Exitosas", COLOR_SUCCESS, "🟢")
+    _kpi(c6, f"{total_fallidas:,}", "Fallidas", COLOR_DANGER, "🔴")
+    _kpi(c7, f"{pct_exito}%", "Porcentaje de Éxito", "#00695C", "🎯")
+    _kpi(c8, f"{rend_semanal}", "Prom. Visitas/Semana", "#00695C", "📈")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -664,12 +651,29 @@ if pagina == "Inicio":
                     ))
             fig_spark.update_layout(
                 barmode="stack",
-                title=dict(text="Evolución de visitas — últimas 8 semanas", font=dict(size=14, color="#333")),
-                height=250, margin=dict(l=20, r=20, t=40, b=20),
-                plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
-                xaxis=dict(showgrid=False, tickfont=dict(size=10)),
-                yaxis=dict(showgrid=True, gridcolor="#f0f0f0", tickfont=dict(size=10)),
+                title=dict(
+                    text="Evolución de visitas — últimas 8 semanas",
+                    font=dict(size=13, color="#444"), x=0.0, y=0.97,
+                ),
+                height=270,
+                margin=dict(l=40, r=20, t=48, b=50),
+                plot_bgcolor="#FAFBFF",
+                paper_bgcolor="white",
+                bargap=0.28,
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1, font=dict(size=10.5),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
+                xaxis=dict(
+                    showgrid=False, tickfont=dict(size=9.5), title="",
+                    tickformat="%d %b", showline=True, linecolor="#e8e8e8",
+                ),
+                yaxis=dict(
+                    showgrid=True, gridcolor="#eef0f4", gridwidth=1,
+                    tickfont=dict(size=10), title="Visitas",
+                    titlefont=dict(size=10, color="#888"),
+                ),
             )
             st.plotly_chart(fig_spark, use_container_width=True)
 
@@ -789,6 +793,22 @@ elif pagina == "Programar Visita":
 
         else:  # Carga masiva
             st.markdown('<div class="section-title">Carga masiva desde Excel</div>', unsafe_allow_html=True)
+
+            # Plantilla descargable
+            _tmpl_buf = io.BytesIO()
+            _tmpl_df = pd.DataFrame({
+                "REA": ["000001", "000002", "000003"],
+            })
+            with pd.ExcelWriter(_tmpl_buf, engine="openpyxl") as _w:
+                _tmpl_df.to_excel(_w, index=False, sheet_name="Predios")
+            st.download_button(
+                "📥 Descargar plantilla Excel",
+                data=_tmpl_buf.getvalue(),
+                file_name="plantilla_carga_masiva.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_plantilla_masiva",
+                help="Descargue la plantilla, llénela con los REA a programar y súbala aquí.",
+            )
             archivo = st.file_uploader(
                 "Suba un archivo Excel con columna REA",
                 type=["xlsx", "xls"],
@@ -837,25 +857,68 @@ elif pagina == "Programar Visita":
                 obs_prog = st.text_area("Observaciones de programación", height=100, key="obs_prog_rea")
 
             # ── Técnico por predio ─────────────────────────────────────
-            st.markdown('<div class="section-title">Asignación de técnico por predio</div>', unsafe_allow_html=True)
-            st.caption("Seleccione el técnico responsable de cada predio. Puede cambiar la asignación antes de confirmar.")
+            st.markdown('<div class="section-title">Asignación de técnicos</div>', unsafe_allow_html=True)
 
-            # Inicializar asignaciones en session_state
             if "asig_tecnicos" not in st.session_state:
                 st.session_state["asig_tecnicos"] = {}
 
-            for rea in predios_a_programar:
-                info = maestro[maestro["REA"] == rea]
-                dir_label = info["DIRECCION"].iloc[0] if not info.empty and pd.notna(info["DIRECCION"].iloc[0]) else ""
-                label = f"{rea}" + (f"  —  {dir_label}" if dir_label else "")
-                prev = st.session_state["asig_tecnicos"].get(rea, [])
-                tec_predio = st.multiselect(
-                    label,
-                    options=tecnicos_activos,
-                    default=[t for t in prev if t in tecnicos_activos],
-                    key=f"tec_predio_{rea}",
+            modo_asig = st.radio(
+                "Modo de asignación",
+                ["Mismo técnico para todos", "Asignación por grupo", "Individual por predio"],
+                horizontal=True, key="modo_asig_tec",
+            )
+
+            if modo_asig == "Mismo técnico para todos":
+                tec_todos = st.multiselect(
+                    "Técnico(s) asignado(s) a todos los predios",
+                    options=tecnicos_activos, key="tec_masivo_todos",
                 )
-                st.session_state["asig_tecnicos"][rea] = tec_predio
+                if st.button("Aplicar a todos los predios", key="btn_aplicar_todos"):
+                    for _rea in predios_a_programar:
+                        st.session_state["asig_tecnicos"][_rea] = tec_todos
+                    st.rerun()
+
+            elif modo_asig == "Asignación por grupo":
+                st.caption("Seleccione los predios del grupo y el técnico, luego pulse Aplicar.")
+                _ga, _gb = st.columns([3, 2])
+                with _ga:
+                    grupo_sel = st.multiselect(
+                        "Predios del grupo",
+                        options=predios_a_programar, key="grupo_predios",
+                    )
+                with _gb:
+                    tec_grupo = st.multiselect(
+                        "Técnico(s) para el grupo",
+                        options=tecnicos_activos, key="tec_grupo",
+                    )
+                if st.button("Aplicar al grupo", key="btn_aplicar_grupo") and grupo_sel:
+                    for _rea in grupo_sel:
+                        st.session_state["asig_tecnicos"][_rea] = tec_grupo
+                    st.rerun()
+
+            else:  # Individual
+                for rea in predios_a_programar:
+                    info = maestro[maestro["REA"] == rea]
+                    dir_label = info["DIRECCION"].iloc[0] if not info.empty and pd.notna(info["DIRECCION"].iloc[0]) else ""
+                    label = f"{rea}" + (f"  —  {dir_label}" if dir_label else "")
+                    prev = st.session_state["asig_tecnicos"].get(rea, [])
+                    tec_predio = st.multiselect(
+                        label,
+                        options=tecnicos_activos,
+                        default=[t for t in prev if t in tecnicos_activos],
+                        key=f"tec_predio_{rea}",
+                    )
+                    st.session_state["asig_tecnicos"][rea] = tec_predio
+
+            # Resumen de asignaciones actuales
+            _resumen_asig = pd.DataFrame({
+                "REA": predios_a_programar,
+                "Técnico(s) asignado(s)": [
+                    ", ".join(st.session_state["asig_tecnicos"].get(r, [])) or "⚠️ Sin asignar"
+                    for r in predios_a_programar
+                ],
+            })
+            st.dataframe(_resumen_asig, use_container_width=True, hide_index=True)
 
             if st.button("Programar Visita(s)", use_container_width=True, key="btn_prog_rea"):
                 sin_tecnico = [r for r in predios_a_programar if not st.session_state["asig_tecnicos"].get(r)]
@@ -1026,30 +1089,41 @@ elif pagina == "Visitas Programadas":
         st.caption(f"**{len(df_f)} visitas pendientes** con los filtros actuales.")
 
         # ── TABLA ─────────────────────────────────────────────
-        tab_lista, tab_mapa, tab_eliminar = st.tabs(["📋 Lista", "🗺️ Mapa", "🗑️ Eliminar predio"])
+        tab_lista, tab_eliminar = st.tabs(["📋 Lista y Mapa", "🗑️ Eliminar predio"])
 
         with tab_lista:
             show_cols = [c for c in [
                 "NUM_VISITA", "FECHA_PROGRAMADA", "REA", "TECNICOS",
                 "LOCALIDAD_M", "BARRIO_M", "DIRECCION_M", "ESTADO_REA", "ENLACE_MAPS",
             ] if c in df_f.columns]
-            st.dataframe(
-                df_f[show_cols],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "ENLACE_MAPS": st.column_config.LinkColumn("Maps", display_text="📍 Ver mapa"),
-                    "NUM_VISITA": st.column_config.TextColumn("N° Visita"),
-                    "FECHA_PROGRAMADA": st.column_config.TextColumn("Fecha"),
-                    "TECNICOS": st.column_config.TextColumn("Técnico(s)"),
-                    "LOCALIDAD_M": st.column_config.TextColumn("Localidad"),
-                    "BARRIO_M": st.column_config.TextColumn("Barrio"),
-                    "DIRECCION_M": st.column_config.TextColumn("Dirección"),
-                    "ESTADO_REA": st.column_config.TextColumn("Estado REA"),
-                },
-            )
 
-            # Exportar Excel con columnas limpias
+            col_cfg = {
+                "ENLACE_MAPS": st.column_config.LinkColumn("Maps", display_text="📍 Ver mapa"),
+                "NUM_VISITA": st.column_config.TextColumn("N° Visita"),
+                "FECHA_PROGRAMADA": st.column_config.TextColumn("Fecha"),
+                "TECNICOS": st.column_config.TextColumn("Técnico(s)"),
+                "LOCALIDAD_M": st.column_config.TextColumn("Localidad"),
+                "BARRIO_M": st.column_config.TextColumn("Barrio"),
+                "DIRECCION_M": st.column_config.TextColumn("Dirección"),
+                "ESTADO_REA": st.column_config.TextColumn("Estado REA"),
+            }
+
+            sel_indices = []
+            try:
+                _ev = st.dataframe(
+                    df_f[show_cols].reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=col_cfg,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key="vp_tabla_sel",
+                )
+                sel_indices = _ev.selection.rows if hasattr(_ev, "selection") and _ev.selection.rows else []
+            except TypeError:
+                st.dataframe(df_f[show_cols], use_container_width=True, hide_index=True, column_config=col_cfg)
+
+            # Exportar Excel
             export_cols = [c for c in [
                 "NUM_VISITA", "FECHA_PROGRAMADA", "REA", "TECNICOS",
                 "LOCALIDAD_M", "BARRIO_M", "DIRECCION_M", "ESTADO_REA",
@@ -1069,55 +1143,78 @@ elif pagina == "Visitas Programadas":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-        # ── MAPA ──────────────────────────────────────────────
-        with tab_mapa:
-            # Obtener coordenadas: preferir maestro, fallback a manual
+            # ── MAPA ─────────────────────────────────────────
+            st.markdown('<div class="section-title">Mapa de visitas pendientes</div>', unsafe_allow_html=True)
+            if sel_indices:
+                _sel_nv = df_f.iloc[sel_indices[0]].get("NUM_VISITA", "")
+                st.caption(f"Predio seleccionado: **{_sel_nv}** — punto naranja en el mapa.")
+
             df_map = df_f.copy()
             df_map["_lat"] = pd.to_numeric(df_map.get("LAT_M"), errors="coerce")
             df_map["_lon"] = pd.to_numeric(df_map.get("LON_M"), errors="coerce")
-            # Para sin REA, usar coordenadas manuales
             if "LATITUD_MANUAL" in df_map.columns:
                 df_map["_lat"] = df_map["_lat"].fillna(pd.to_numeric(df_map["LATITUD_MANUAL"], errors="coerce"))
                 df_map["_lon"] = df_map["_lon"].fillna(pd.to_numeric(df_map["LONGITUD_MANUAL"], errors="coerce"))
 
-            df_map_clean = df_map.dropna(subset=["_lat", "_lon"])
+            df_map_clean = df_map.dropna(subset=["_lat", "_lon"]).copy()
 
             if df_map_clean.empty:
-                st.info("No hay coordenadas disponibles para los predios filtrados. Verifique que el maestro tenga LATITUD y LONGITUD.")
+                st.info("No hay coordenadas disponibles para los predios filtrados.")
             else:
                 n_sin_coord = len(df_map) - len(df_map_clean)
                 if n_sin_coord > 0:
                     st.caption(f"⚠️ {n_sin_coord} predio(s) sin coordenadas no aparecen en el mapa.")
 
-                # Mapa con pydeck (scatter layer)
                 try:
                     import pydeck as pdk
-                    dir_col = df_map_clean.get("DIRECCION_M", pd.Series("", index=df_map_clean.index)) if "DIRECCION_M" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
-                    tec_col = df_map_clean["TECNICOS"] if "TECNICOS" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
-                    df_map_clean = df_map_clean.copy()
-                    df_map_clean["tooltip"] = (
-                        df_map_clean["REA"].fillna("") + "\n" +
-                        dir_col.fillna("") + "\n" +
-                        tec_col.fillna("")
-                    )
-                    layer = pdk.Layer(
+
+                    dir_col = df_map_clean["DIRECCION_M"].fillna("") if "DIRECCION_M" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
+                    tec_col = df_map_clean["TECNICOS"].fillna("") if "TECNICOS" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
+                    nv_col  = df_map_clean["NUM_VISITA"].fillna("") if "NUM_VISITA" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
+                    df_map_clean["tooltip"] = nv_col + " | " + df_map_clean["REA"].fillna("") + "\n" + dir_col + "\n" + tec_col
+
+                    # Determine selected NUM_VISITA for highlight
+                    _sel_nv_map = df_f.iloc[sel_indices[0]].get("NUM_VISITA", "") if sel_indices else None
+
+                    df_base = df_map_clean[["_lat", "_lon", "tooltip", "NUM_VISITA"]].rename(columns={"_lat": "lat", "_lon": "lon"})
+                    df_base["_sel"] = df_base["NUM_VISITA"] == _sel_nv_map
+
+                    layer_base = pdk.Layer(
                         "ScatterplotLayer",
-                        data=df_map_clean[["_lat", "_lon", "tooltip"]].rename(columns={"_lat": "lat", "_lon": "lon"}),
+                        data=df_base[~df_base["_sel"]][["lat", "lon", "tooltip"]],
                         get_position="[lon, lat]",
-                        get_color=[204, 0, 0, 210],
+                        get_color=[204, 0, 0, 200],
                         get_radius=55,
                         radius_min_pixels=6,
-                        radius_max_pixels=18,
+                        radius_max_pixels=16,
                         pickable=True,
                     )
-                    view = pdk.ViewState(
-                        latitude=df_map_clean["_lat"].mean(),
-                        longitude=df_map_clean["_lon"].mean(),
-                        zoom=12,
-                        pitch=0,
-                    )
+
+                    layers = [layer_base]
+
+                    if _sel_nv_map and df_base["_sel"].any():
+                        layer_hl = pdk.Layer(
+                            "ScatterplotLayer",
+                            data=df_base[df_base["_sel"]][["lat", "lon", "tooltip"]],
+                            get_position="[lon, lat]",
+                            get_color=[255, 140, 0, 255],
+                            get_radius=90,
+                            radius_min_pixels=12,
+                            radius_max_pixels=28,
+                            pickable=True,
+                        )
+                        layers.append(layer_hl)
+                        _hl_row = df_base[df_base["_sel"]].iloc[0]
+                        view = pdk.ViewState(latitude=_hl_row["lat"], longitude=_hl_row["lon"], zoom=15, pitch=0)
+                    else:
+                        view = pdk.ViewState(
+                            latitude=df_map_clean["_lat"].mean(),
+                            longitude=df_map_clean["_lon"].mean(),
+                            zoom=12, pitch=0,
+                        )
+
                     st.pydeck_chart(pdk.Deck(
-                        layers=[layer],
+                        layers=layers,
                         initial_view_state=view,
                         tooltip={"text": "{tooltip}"},
                         map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
@@ -1127,7 +1224,6 @@ elif pagina == "Visitas Programadas":
                         df_map_clean.rename(columns={"_lat": "latitude", "_lon": "longitude"})[["latitude", "longitude"]],
                         zoom=11,
                     )
-                    st.caption("Instale `pydeck` para mapa interactivo con tooltips: `pip install pydeck`")
 
         # ── ELIMINAR PREDIO ───────────────────────────────────
         with tab_eliminar:
@@ -1644,13 +1740,27 @@ elif pagina == "Indicadores":
                                 ))
                         fig_bar.update_layout(
                             barmode="stack",
-                            title=dict(text="Visitas por semana", font=dict(size=15, color="#333"), x=0.01),
-                            height=340,
-                            margin=dict(l=10, r=10, t=50, b=10),
-                            plot_bgcolor="white", paper_bgcolor="white",
-                            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(size=11)),
-                            xaxis=dict(showgrid=False, tickfont=dict(size=10), title=""),
-                            yaxis=dict(showgrid=True, gridcolor="#f5f5f5", tickfont=dict(size=10), title="Visitas"),
+                            title=dict(text="Visitas por semana", font=dict(size=14, color="#333"), x=0.0),
+                            height=350,
+                            margin=dict(l=40, r=20, t=55, b=50),
+                            plot_bgcolor="#FAFBFF",
+                            paper_bgcolor="white",
+                            bargap=0.28,
+                            legend=dict(
+                                orientation="h", yanchor="bottom", y=1.02,
+                                xanchor="right", x=1, font=dict(size=11),
+                                bgcolor="rgba(0,0,0,0)",
+                            ),
+                            xaxis=dict(
+                                showgrid=False, tickformat="%d %b",
+                                tickfont=dict(size=9.5), title="",
+                                showline=True, linecolor="#e0e0e0",
+                            ),
+                            yaxis=dict(
+                                showgrid=True, gridcolor="#eef0f4", gridwidth=1,
+                                tickfont=dict(size=10), title="Visitas",
+                                titlefont=dict(size=10, color="#888"),
+                            ),
                         )
                         st.plotly_chart(fig_bar, use_container_width=True)
 
@@ -1669,16 +1779,19 @@ elif pagina == "Indicadores":
                             hovertemplate="<b>%{label}</b><br>%{value} visitas (%{percent})<extra></extra>",
                         ))
                         fig_pie.update_layout(
-                            title=dict(text="Distribución por resultado", font=dict(size=15, color="#333"), x=0.01),
-                            height=340,
-                            margin=dict(l=10, r=10, t=50, b=10),
+                            title=dict(text="Distribución por resultado", font=dict(size=14, color="#333"), x=0.0),
+                            height=350,
+                            margin=dict(l=10, r=10, t=55, b=30),
                             paper_bgcolor="white",
                             showlegend=True,
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5, font=dict(size=11)),
+                            legend=dict(
+                                orientation="h", yanchor="bottom", y=-0.12,
+                                xanchor="center", x=0.5, font=dict(size=11),
+                            ),
                             annotations=[dict(
-                                text=f"<b>{tot_g}</b><br>total",
-                                x=0.5, y=0.5, font_size=14, showarrow=False,
-                                font=dict(color="#333"),
+                                text=f"<b>{tot_g}</b><br><span style='font-size:11px'>total</span>",
+                                x=0.5, y=0.5, font=dict(size=15, color="#333"),
+                                showarrow=False,
                             )],
                         )
                         st.plotly_chart(fig_pie, use_container_width=True)
@@ -1722,13 +1835,26 @@ elif pagina == "Indicadores":
             ))
             fig_tec.update_layout(
                 barmode="stack",
-                title=dict(text="Visitas por técnico", font=dict(size=15, color="#333"), x=0.01),
-                height=max(280, len(resumen_sorted) * 42 + 80),
-                margin=dict(l=10, r=10, t=50, b=10),
-                plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(size=11)),
-                xaxis=dict(showgrid=True, gridcolor="#f5f5f5", title="Visitas", tickfont=dict(size=10)),
-                yaxis=dict(showgrid=False, tickfont=dict(size=11)),
+                title=dict(text="Visitas por técnico", font=dict(size=14, color="#333"), x=0.0),
+                height=max(300, len(resumen_sorted) * 44 + 90),
+                margin=dict(l=10, r=60, t=55, b=20),
+                plot_bgcolor="#FAFBFF",
+                paper_bgcolor="white",
+                bargap=0.3,
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1, font=dict(size=11),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
+                xaxis=dict(
+                    showgrid=True, gridcolor="#eef0f4", gridwidth=1,
+                    title="Visitas", titlefont=dict(size=10, color="#888"),
+                    tickfont=dict(size=10),
+                ),
+                yaxis=dict(
+                    showgrid=False, tickfont=dict(size=10.5),
+                    automargin=True,
+                ),
             )
             st.plotly_chart(fig_tec, use_container_width=True)
 
