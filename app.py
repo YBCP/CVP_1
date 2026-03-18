@@ -819,6 +819,9 @@ elif pagina == "Programar Visita":
                 key="dl_plantilla_masiva",
                 help="Descargue la plantilla, llénela con los REA a programar y súbala aquí.",
             )
+            if "lista_predios_masiva" not in st.session_state:
+                st.session_state["lista_predios_masiva"] = []
+
             archivo = st.file_uploader(
                 "Suba un archivo Excel con columna REA",
                 type=["xlsx", "xls"],
@@ -834,22 +837,43 @@ elif pagina == "Programar Visita":
                         reas_excel = df_excel["REA"].dropna().str.strip().unique().tolist()
                         ya_pendientes = [r for r in reas_excel if r in _reas_pendientes]
                         reas_validos = [r for r in reas_excel if r not in _reas_pendientes]
-                        encontrados = maestro[maestro["REA"].isin(reas_validos)]
+                        encontrados_rea = maestro[maestro["REA"].isin(reas_validos)]["REA"].tolist()
                         no_encontrados = [r for r in reas_validos if r not in maestro["REA"].values]
 
-                        st.success(f"✓ {len(encontrados)} predios listos para programar | ⚠️ {len(no_encontrados)} no encontrados en maestro")
+                        st.success(f"✓ {len(encontrados_rea)} predios cargados | ⚠️ {len(no_encontrados)} no encontrados en maestro")
                         if ya_pendientes:
                             st.warning(f"{len(ya_pendientes)} predio(s) ya tienen visita pendiente y fueron excluidos: {', '.join(ya_pendientes[:10])}{'…' if len(ya_pendientes) > 10 else ''}")
                         if no_encontrados:
                             with st.expander(f"REAs no encontrados ({len(no_encontrados)})"):
                                 st.write(no_encontrados)
 
-                        show_cols = [c for c in ["REA", "CHIP", "LOCALIDAD", "BARRIO", "DIRECCION", "ESTADO_REA"] if c in encontrados.columns]
-                        st.dataframe(encontrados[show_cols], use_container_width=True, hide_index=True)
-                        predios_seleccionados = encontrados["REA"].tolist()
-                        st.session_state["predios_prog_masiva"] = predios_seleccionados
+                        if set(encontrados_rea) != set(st.session_state["lista_predios_masiva"]):
+                            st.session_state["lista_predios_masiva"] = encontrados_rea
                 except Exception as e:
                     st.error(f"Error leyendo el archivo: {e}")
+
+            lista_masiva = st.session_state["lista_predios_masiva"]
+            if lista_masiva:
+                st.markdown(f'<div class="section-title">Predios cargados ({len(lista_masiva)})</div>', unsafe_allow_html=True)
+                show_cols_m = [c for c in ["REA", "CHIP", "LOCALIDAD", "BARRIO", "DIRECCION", "ESTADO_REA"] if c in maestro.columns]
+                st.dataframe(
+                    maestro[maestro["REA"].isin(lista_masiva)][show_cols_m],
+                    use_container_width=True, hide_index=True,
+                )
+                col_qm1, col_qm2 = st.columns([3, 1])
+                with col_qm1:
+                    predio_quitar_m = st.selectbox("Quitar predio de la lista", options=[""] + lista_masiva, key="sel_quitar_masiva")
+                with col_qm2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("Quitar", use_container_width=True, key="btn_quitar_masiva") and predio_quitar_m:
+                        st.session_state["lista_predios_masiva"].remove(predio_quitar_m)
+                        st.rerun()
+                if st.button("Limpiar toda la lista", key="btn_limpiar_masiva"):
+                    st.session_state["lista_predios_masiva"] = []
+                    st.rerun()
+
+            predios_seleccionados = lista_masiva
+            st.session_state["predios_prog_masiva"] = predios_seleccionados
 
         # ── FORMULARIO DE PROGRAMACIÓN ─────────────────────────
         predios_a_programar = (
