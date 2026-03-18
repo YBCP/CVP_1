@@ -753,11 +753,13 @@ elif pagina == "Programar Visita":
                 if campo_busqueda == "CHIP":
                     match = maestro[maestro["CHIP"].str.strip() == rea_a_agregar] if "CHIP" in maestro.columns else pd.DataFrame()
                     rea_a_agregar = match["REA"].iloc[0] if not match.empty and pd.notna(match["REA"].iloc[0]) else rea_a_agregar
-                if rea_a_agregar in st.session_state["lista_predios_manual"]:
+                if rea_a_agregar in _reas_pendientes:
+                    st.error(f"El predio **{rea_a_agregar}** ya tiene una visita **Pendiente**. Registre el resultado antes de programar una nueva.")
+                elif rea_a_agregar in st.session_state["lista_predios_manual"]:
                     st.warning(f"El predio **{rea_a_agregar}** ya está en la lista.")
                 else:
                     st.session_state["lista_predios_manual"].append(rea_a_agregar)
-                    st.success(f"✓ Predio **{rea_a_agregar}** agregado.")
+                    st.success(f"Predio **{rea_a_agregar}** agregado.")
 
             # ── Mostrar lista acumulada ────────────────────────────────
             lista_actual = st.session_state["lista_predios_manual"]
@@ -932,11 +934,25 @@ elif pagina == "Programar Visita":
             st.dataframe(_resumen_asig, use_container_width=True, hide_index=True)
 
             if st.button("Programar Visita(s)", use_container_width=True, key="btn_prog_rea"):
+                # Verificar al momento de guardar que ningún predio tenga visita pendiente activa
+                visitas_df = load_visitas()
+                _pend_al_guardar = set()
+                if not visitas_df.empty and "REA" in visitas_df.columns and "ESTADO" in visitas_df.columns:
+                    _pend_al_guardar = set(
+                        visitas_df[visitas_df["ESTADO"] == "Pendiente"]["REA"].dropna().astype(str).str.strip()
+                    )
+                con_pendiente = [r for r in predios_a_programar if r in _pend_al_guardar]
+                if con_pendiente:
+                    st.error(
+                        f"Los siguientes predios ya tienen una visita **Pendiente**. "
+                        f"Registre el resultado antes de programar una nueva visita:\n\n"
+                        + "\n".join(f"- {r}" for r in con_pendiente)
+                    )
+                    st.stop()
                 sin_tecnico = [r for r in predios_a_programar if not st.session_state["asig_tecnicos"].get(r)]
                 if sin_tecnico:
                     st.warning(f"Faltan técnicos en: {', '.join(sin_tecnico)}")
                 else:
-                    visitas_df = load_visitas()
                     nuevas = []
                     nums_asignados = []
                     for rea in predios_a_programar:
