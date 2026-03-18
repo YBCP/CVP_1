@@ -157,6 +157,17 @@ st.markdown(
 # DATA LOADING HELPERS
 # ─────────────────────────────────────────────
 
+@st.cache_resource(show_spinner=False)
+def get_supabase():
+    try:
+        from supabase import create_client
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        return create_client(url, key)
+    except Exception:
+        return None
+
+
 @st.cache_data(show_spinner=False)
 def load_maestro():
     try:
@@ -174,6 +185,18 @@ def load_maestro():
 
 
 def load_visitas():
+    sb = get_supabase()
+    if sb:
+        try:
+            resp = sb.table("visitas").select("*").execute()
+            if resp.data:
+                df = pd.DataFrame(resp.data)
+                df = df.drop(columns=["id"], errors="ignore")
+                df = df.astype(str).replace("None", "").replace("nan", "")
+                return df
+        except Exception as e:
+            st.warning(f"Supabase (visitas): {e}")
+    # Fallback CSV
     try:
         df = pd.read_csv(VISITAS_PATH, dtype=str)
         if df.empty or len(df.columns) == 0:
@@ -196,6 +219,18 @@ def _empty_visitas():
 
 
 def load_resultados():
+    sb = get_supabase()
+    if sb:
+        try:
+            resp = sb.table("resultados").select("*").execute()
+            if resp.data:
+                df = pd.DataFrame(resp.data)
+                df = df.drop(columns=["id"], errors="ignore")
+                df = df.astype(str).replace("None", "").replace("nan", "")
+                return df
+        except Exception as e:
+            st.warning(f"Supabase (resultados): {e}")
+    # Fallback CSV
     try:
         df = pd.read_csv(RESULTADOS_PATH, dtype=str)
         if df.empty or len(df.columns) == 0:
@@ -237,10 +272,33 @@ def load_tecnicos():
 
 def save_visitas(df):
     df.to_csv(VISITAS_PATH, index=False)
+    sb = get_supabase()
+    if sb and not df.empty:
+        try:
+            records = df.where(pd.notna(df), None).to_dict("records")
+            sb.table("visitas").upsert(records, on_conflict="NUM_VISITA").execute()
+        except Exception as e:
+            st.warning(f"No se pudo sincronizar visitas con Supabase: {e}")
 
 
 def save_resultados(df):
     df.to_csv(RESULTADOS_PATH, index=False)
+    sb = get_supabase()
+    if sb and not df.empty:
+        try:
+            records = df.where(pd.notna(df), None).to_dict("records")
+            sb.table("resultados").upsert(records, on_conflict="NUM_VISITA").execute()
+        except Exception as e:
+            st.warning(f"No se pudo sincronizar resultados con Supabase: {e}")
+
+
+def delete_visita_supabase(num_visita: str):
+    sb = get_supabase()
+    if sb:
+        try:
+            sb.table("visitas").delete().eq("NUM_VISITA", num_visita).execute()
+        except Exception as e:
+            st.warning(f"No se pudo eliminar de Supabase: {e}")
 
 
 def save_tecnicos(df):
@@ -1088,6 +1146,7 @@ elif pagina == "Visitas Programadas":
 
                 confirmar = st.checkbox("Confirmo que deseo eliminar esta visita programada", key="confirm_elim")
                 if st.button("🗑️ Eliminar visita", disabled=not confirmar, key="btn_elim"):
+                    delete_visita_supabase(nv_elim)
                     visitas_df = load_visitas()
                     visitas_df = visitas_df[visitas_df["NUM_VISITA"] != nv_elim]
                     save_visitas(visitas_df)
