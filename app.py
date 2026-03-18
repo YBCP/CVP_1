@@ -32,6 +32,11 @@ COLOR_DANGER    = "#CC0000"
 COLOR_WARNING   = "#FFC300"
 
 CARGOS = [
+    "Técnico",
+    "Técnico SIG",
+    "Líder Técnico",
+    "Avaluador",
+    "Saneamiento",
     "Técnico Social",
     "Profesional Social",
     "Técnico Jurídico",
@@ -1538,7 +1543,28 @@ elif pagina == "Gestión de Técnicos":
                 [tecnicos_df, pd.DataFrame([nuevo_tecnico])], ignore_index=True
             )
             save_tecnicos(tecnicos_df)
-            st.success(f"✅ Técnico '{nuevo_nombre}' agregado con ID {new_id}.")
+            st.success(f"Técnico '{nuevo_nombre}' agregado con ID {new_id}.")
+            st.rerun()
+
+    st.markdown('<div class="section-title">Eliminar técnico</div>', unsafe_allow_html=True)
+
+    tecnicos_df_del = load_tecnicos()
+    if tecnicos_df_del.empty:
+        st.info("No hay técnicos registrados.")
+    else:
+        opciones_tec = {
+            f"{row['NOMBRE']} ({row['ID_TECNICO']})": row["ID_TECNICO"]
+            for _, row in tecnicos_df_del.iterrows()
+        }
+        sel_del_tec = st.selectbox("Seleccione el técnico a eliminar", list(opciones_tec.keys()), key="sel_del_tec")
+        id_del_tec = opciones_tec[sel_del_tec]
+        nombre_del_tec = sel_del_tec.split(" (")[0]
+
+        confirmar_tec = st.checkbox(f"Confirmo que deseo eliminar a **{nombre_del_tec}**", key="confirm_del_tec")
+        if st.button("Eliminar técnico", disabled=not confirmar_tec, key="btn_del_tec"):
+            tecnicos_df_del = tecnicos_df_del[tecnicos_df_del["ID_TECNICO"] != id_del_tec]
+            save_tecnicos(tecnicos_df_del)
+            st.success(f"Técnico '{nombre_del_tec}' eliminado.")
             st.rerun()
 
 

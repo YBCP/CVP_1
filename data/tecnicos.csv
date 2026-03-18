@@ -1,9 +1,21 @@
-﻿ID_TECNICO,NOMBRE,CARGO,EMAIL,ACTIVO,CONTRATO
-T001,Alejandro Morales Gómez,Profesional Social,a.morales@cvp.gov.co,True,
-T002,Sandra Patricia Roa Hernández,Técnico Social,s.roa@cvp.gov.co,True,
-T003,Carlos Eduardo Vargas Torres,Profesional Jurídico,c.vargas@cvp.gov.co,True,
-T004,Lucía Fernanda Castillo Peña,Técnico Jurídico,l.castillo@cvp.gov.co,True,
-T005,Jhon Fredy Bermúdez Salcedo,Técnico Predial,j.bermudez@cvp.gov.co,True,
-T006,Mónica Andrea Suárez Niño,Profesional Social,m.suarez@cvp.gov.co,True,
-T007,Rafael Enrique Pineda Ávila,Técnico Predial,r.pineda@cvp.gov.co,False,
-T008,Diana Carolina Ospina Díaz,Técnico Social,d.ospina@cvp.gov.co,True,
+ID_TECNICO,NOMBRE,CARGO,EMAIL,ACTIVO,CONTRATO
+T001,JOHNNY ZARATE HERRERA,Técnico,johnny.zarate@cvp.gov.co,True,483
+T002,STEFANNY HERRERA ARRIETA,Técnico,stefanny.herrera@cvp.gov.co,True,411
+T003,VALENTINA MONTENEGRO JIMENEZ,Técnico SIG,valentina.montenegro@cvp.gov.co,True,488
+T004,JAVIER MAURICIO DELGADO SABOYA,Técnico,javier.delgado@cvp.gov.co,True,262
+T005,JUAN JAIRO HERRERA GUERRERO,Técnico,juan.herrera@cvp.gov.co,True,389
+T006,GERMAN VARGAS ALVAREZ,Técnico,german.vargas@cvp.gov.co,True,367
+T007,YACKSON LONDOÑO LONDOÑO,Técnico,yakson.londono@cvp.gov.co,True,402
+T008,YOLANDA BEATRIZ CABALLERO PEREZ,Saneamiento,yolanda.caballero@cvp.gov.co,True,435
+T009,HECTOR HERNANDO GARCIA BERNAL,Técnico,hector.garcia@cvp.gov.co,True,382
+T010,LUISA FERNANDA CRUZ CASTILLO,Técnico,luisa.cruz@cvp.gov.co,True,287
+T011,JOYCE ALEXANDRA ORTIZ DAZA,Técnico,joyce.ortiz@cvp.gov.co,True,406
+T012,OSCAR ANDRES NAVARRO MANRIQUE,Líder Técnico,oscar.navarro@cvp.gov.co,True,170
+T013,WILSON LEONARDO BECERRA TRIANA,Técnico,wilson.becerra@cvp.gov.co,True,407
+T014,CLEMENCIA CALDERON ACERO,Avaluador,clemencia.calderon@cvp.gov.co,True,404
+T015,SANTIAGO BERBEO RUBIANO,Técnico,santiago.berbeo@cvp.gov.co,True,502
+T016,JUAN CARLOS FERNANDEZ CASTILLO,Avaluador,juan.fernandezc@cvp.gov.co,True,263
+T017,BRIAN EMILIO LUNA GONZALEZ,Técnico,brian.luna@cvp.gov.co,True,514
+T018,JOSE IGNACIO SARMIENTO BLUM,Técnico,jose.sarmiento@cvp.gov.co,True,522
+T019,PEDRO VICENTE CONTRERAS URREGO,Técnico,pedro.contreras@cvp.gov.co,True,
+T020,OSCAR EDUARDO CASTILLO RODRIGUEZ,Técnico,oscar.castillo@cvp.gov.co,True,
