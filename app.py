@@ -671,8 +671,8 @@ if pagina == "Inicio":
                 ),
                 yaxis=dict(
                     showgrid=True, gridcolor="#eef0f4", gridwidth=1,
-                    tickfont=dict(size=10), title="Visitas",
-                    titlefont=dict(size=10, color="#888"),
+                    tickfont=dict(size=10),
+                    title=dict(text="Visitas", font=dict(size=10, color="#888")),
                 ),
             )
             st.plotly_chart(fig_spark, use_container_width=True)
@@ -703,6 +703,14 @@ elif pagina == "Programar Visita":
         if not tecnicos_df.empty else []
     )
 
+    # REAs que ya tienen visita Pendiente → no se deben volver a programar
+    _visitas_existentes = load_visitas()
+    _reas_pendientes = set()
+    if not _visitas_existentes.empty and "REA" in _visitas_existentes.columns and "ESTADO" in _visitas_existentes.columns:
+        _reas_pendientes = set(
+            _visitas_existentes[_visitas_existentes["ESTADO"] == "Pendiente"]["REA"].dropna().astype(str).str.strip()
+        )
+
     tab_rea, tab_sin_rea = st.tabs(["🔎 Con REA", "📍 Sin REA"])
 
     # ── TAB CON REA ──────────────────────────────────────────────
@@ -721,7 +729,7 @@ elif pagina == "Programar Visita":
             campo_busqueda = st.radio("Buscar por", ["REA", "CHIP"], horizontal=True, key="campo_busq_manual")
 
             if campo_busqueda == "REA":
-                opciones = sorted(maestro["REA"].dropna().astype(str).str.strip().unique().tolist())
+                opciones = sorted([r for r in maestro["REA"].dropna().astype(str).str.strip().unique() if r not in _reas_pendientes])
             else:
                 opciones = sorted(maestro["CHIP"].dropna().astype(str).str.strip().unique().tolist()) if "CHIP" in maestro.columns else []
 
@@ -822,11 +830,14 @@ elif pagina == "Programar Visita":
                         st.error("El archivo no tiene columna REA")
                     else:
                         reas_excel = df_excel["REA"].dropna().str.strip().unique().tolist()
-                        encontrados = maestro[maestro["REA"].isin(reas_excel)]
-                        no_encontrados = [r for r in reas_excel if r not in maestro["REA"].values]
+                        ya_pendientes = [r for r in reas_excel if r in _reas_pendientes]
+                        reas_validos = [r for r in reas_excel if r not in _reas_pendientes]
+                        encontrados = maestro[maestro["REA"].isin(reas_validos)]
+                        no_encontrados = [r for r in reas_validos if r not in maestro["REA"].values]
 
-                        st.success(f"✓ {len(encontrados)} predios encontrados | ⚠️ {len(no_encontrados)} no encontrados")
-
+                        st.success(f"✓ {len(encontrados)} predios listos para programar | ⚠️ {len(no_encontrados)} no encontrados en maestro")
+                        if ya_pendientes:
+                            st.warning(f"{len(ya_pendientes)} predio(s) ya tienen visita pendiente y fueron excluidos: {', '.join(ya_pendientes[:10])}{'…' if len(ya_pendientes) > 10 else ''}")
                         if no_encontrados:
                             with st.expander(f"REAs no encontrados ({len(no_encontrados)})"):
                                 st.write(no_encontrados)
@@ -1758,8 +1769,8 @@ elif pagina == "Indicadores":
                             ),
                             yaxis=dict(
                                 showgrid=True, gridcolor="#eef0f4", gridwidth=1,
-                                tickfont=dict(size=10), title="Visitas",
-                                titlefont=dict(size=10, color="#888"),
+                                tickfont=dict(size=10),
+                                title=dict(text="Visitas", font=dict(size=10, color="#888")),
                             ),
                         )
                         st.plotly_chart(fig_bar, use_container_width=True)
@@ -1848,7 +1859,7 @@ elif pagina == "Indicadores":
                 ),
                 xaxis=dict(
                     showgrid=True, gridcolor="#eef0f4", gridwidth=1,
-                    title="Visitas", titlefont=dict(size=10, color="#888"),
+                    title=dict(text="Visitas", font=dict(size=10, color="#888")),
                     tickfont=dict(size=10),
                 ),
                 yaxis=dict(
