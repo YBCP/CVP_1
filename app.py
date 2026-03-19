@@ -1911,69 +1911,126 @@ elif pagina == "Indicadores":
 
     # ── TAB POR PREDIO ────────────────────────────────────────
     with tab_pred:
-        st.markdown('<div class="section-title">Historial por predio</div>', unsafe_allow_html=True)
-        rea_txt = st.text_input("Buscar REA (escriba algunos caracteres)", placeholder="Ej: 000123")
-        rea_busq = ""
-        if rea_txt and "REA" in visitas.columns:
-            opciones_rea = sorted(visitas["REA"].dropna().astype(str).unique().tolist())
-            filtradas = [r for r in opciones_rea if rea_txt.strip().lower() in r.lower()]
-            if filtradas:
-                rea_busq = st.selectbox("Seleccione el predio", filtradas, key="sel_rea_hist")
-            else:
-                st.warning(f"No hay coincidencias para '{rea_txt}'")
+        if visitas.empty or "REA" not in visitas.columns:
+            st.info("No hay datos de visitas aún.")
+        else:
+            maestro_p = load_maestro()
 
-        if rea_busq:
-            vis_predio = visitas[visitas["REA"] == rea_busq] if "REA" in visitas.columns else pd.DataFrame()
-            res_predio = resultados[resultados["REA"] == rea_busq] if "REA" in resultados.columns else pd.DataFrame()
+            # ── TABLA RESUMEN GENERAL ──────────────────────────────
+            st.markdown('<div class="section-title">Resumen de visitas por predio</div>', unsafe_allow_html=True)
 
-            if vis_predio.empty:
-                st.warning(f"No se encontraron visitas para REA '{rea_busq}'")
-            else:
-                maestro = load_maestro()
-                if not maestro.empty:
-                    predio_m = maestro[maestro["REA"] == rea_busq.strip()]
+            resumen_pred = visitas.groupby("REA").agg(
+                Total=("NUM_VISITA", "count"),
+                Exitosas=("ESTADO", lambda x: (x == "Exitosa").sum()),
+                Fallidas=("ESTADO", lambda x: (x == "Fallida").sum()),
+                Pendientes=("ESTADO", lambda x: (x == "Pendiente").sum()),
+                Ultima_Visita=("FECHA_PROGRAMADA", "max"),
+            ).reset_index().sort_values("Total", ascending=False)
+
+            # Enriquecer con dirección del maestro
+            if not maestro_p.empty and "REA" in maestro_p.columns:
+                cols_m = [c for c in ["REA", "DIRECCION", "BARRIO", "LOCALIDAD"] if c in maestro_p.columns]
+                resumen_pred = resumen_pred.merge(maestro_p[cols_m], on="REA", how="left")
+
+            col_order = [c for c in ["REA", "DIRECCION", "LOCALIDAD", "Total", "Exitosas", "Fallidas", "Pendientes", "Ultima_Visita"] if c in resumen_pred.columns]
+            st.dataframe(
+                resumen_pred[col_order],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "REA": st.column_config.TextColumn("REA"),
+                    "DIRECCION": st.column_config.TextColumn("Dirección"),
+                    "LOCALIDAD": st.column_config.TextColumn("Localidad"),
+                    "Total": st.column_config.NumberColumn("Total", format="%d"),
+                    "Exitosas": st.column_config.NumberColumn("Exitosas", format="%d"),
+                    "Fallidas": st.column_config.NumberColumn("Fallidas", format="%d"),
+                    "Pendientes": st.column_config.NumberColumn("Pendientes", format="%d"),
+                    "Ultima_Visita": st.column_config.TextColumn("Última Visita"),
+                },
+            )
+
+            # Exportar resumen a Excel
+            buf_pred = io.BytesIO()
+            with pd.ExcelWriter(buf_pred, engine="openpyxl") as _w:
+                resumen_pred[col_order].to_excel(_w, index=False, sheet_name="Resumen predios")
+            st.download_button(
+                "⬇️ Exportar resumen a Excel",
+                data=buf_pred.getvalue(),
+                file_name=f"resumen_predios_{date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_resumen_pred",
+            )
+
+            # ── DETALLE POR PREDIO ─────────────────────────────────
+            st.markdown('<div class="section-title">Detalle por predio</div>', unsafe_allow_html=True)
+            opciones_rea = [""] + sorted(visitas["REA"].dropna().astype(str).unique().tolist())
+            rea_busq = st.selectbox(
+                "Seleccione o busque un REA",
+                options=opciones_rea,
+                index=0,
+                key="sel_rea_hist",
+                help="Escriba los primeros dígitos para filtrar",
+            )
+
+            if rea_busq:
+                vis_predio = visitas[visitas["REA"] == rea_busq]
+                res_predio = resultados[resultados["REA"] == rea_busq] if "REA" in resultados.columns else pd.DataFrame()
+
+                # Info catastral
+                if not maestro_p.empty:
+                    predio_m = maestro_p[maestro_p["REA"] == rea_busq.strip()]
                     if not predio_m.empty:
                         pi = predio_m.iloc[0]
                         st.markdown(
-                            f"""
-                            **Predio:** {pi.get('REA','')} | **Dirección:** {pi.get('DIRECCION','')} |
-                            **Barrio:** {pi.get('BARRIO','')} | **Localidad:** {pi.get('LOCALIDAD','')} |
-                            **Estado REA:** {pi.get('ESTADO_REA','')}
-                            """
+                            f"**REA:** {pi.get('REA','')} &nbsp;|&nbsp; "
+                            f"**Dirección:** {pi.get('DIRECCION','')} &nbsp;|&nbsp; "
+                            f"**Barrio:** {pi.get('BARRIO','')} &nbsp;|&nbsp; "
+                            f"**Localidad:** {pi.get('LOCALIDAD','')} &nbsp;|&nbsp; "
+                            f"**Estado REA:** {pi.get('ESTADO_REA','')}"
                         )
 
-                st.markdown(f"**Total visitas realizadas:** {len(vis_predio)}")
+                st.markdown(f"**Total de visitas:** {len(vis_predio)}")
 
+                # Tabla de visitas con fechas
                 show_vp = [c for c in ["NUM_VISITA", "FECHA_PROGRAMADA", "TECNICOS", "ESTADO", "NUM_VISITA_PREDIO", "OBSERVACIONES_PROG"] if c in vis_predio.columns]
-                st.dataframe(vis_predio[show_vp], use_container_width=True, hide_index=True)
+                st.dataframe(
+                    vis_predio[show_vp].sort_values("FECHA_PROGRAMADA", ascending=False) if "FECHA_PROGRAMADA" in vis_predio.columns else vis_predio[show_vp],
+                    use_container_width=True, hide_index=True,
+                    column_config={
+                        "NUM_VISITA": st.column_config.TextColumn("N° Visita"),
+                        "FECHA_PROGRAMADA": st.column_config.TextColumn("Fecha programada"),
+                        "TECNICOS": st.column_config.TextColumn("Técnico(s)"),
+                        "ESTADO": st.column_config.TextColumn("Estado"),
+                        "NUM_VISITA_PREDIO": st.column_config.TextColumn("Visita N°"),
+                        "OBSERVACIONES_PROG": st.column_config.TextColumn("Observaciones"),
+                    },
+                )
 
                 if not res_predio.empty:
                     st.markdown('<div class="section-title">Resultados registrados</div>', unsafe_allow_html=True)
                     show_rp = [c for c in ["NUM_VISITA", "FECHA_VISITA", "RESULTADO", "OCUPACION", "TIPO_CONSTRUCCION", "OBSERVACIONES"] if c in res_predio.columns]
                     st.dataframe(res_predio[show_rp], use_container_width=True, hide_index=True)
 
-                # Timeline
+                # Línea de tiempo
                 if "FECHA_PROGRAMADA" in vis_predio.columns and "ESTADO" in vis_predio.columns:
-                    st.markdown('<div class="section-title">Línea de tiempo</div>', unsafe_allow_html=True)
                     tl_df = vis_predio[["NUM_VISITA", "FECHA_PROGRAMADA", "ESTADO", "TECNICOS"]].copy()
                     tl_df["_fecha"] = pd.to_datetime(tl_df["FECHA_PROGRAMADA"], errors="coerce")
                     tl_df = tl_df.dropna(subset=["_fecha"])
                     if not tl_df.empty:
+                        st.markdown('<div class="section-title">Línea de tiempo</div>', unsafe_allow_html=True)
                         fig_tl = px.scatter(
-                            tl_df,
-                            x="_fecha",
+                            tl_df, x="_fecha",
                             y=[rea_busq] * len(tl_df),
                             color="ESTADO",
                             color_discrete_map={"Exitosa": COLOR_SUCCESS, "Fallida": COLOR_DANGER, "Pendiente": COLOR_WARNING},
                             hover_data=["NUM_VISITA", "TECNICOS"],
-                            title=f"Línea de tiempo - REA {rea_busq}",
-                            size_max=18,
-                            size=[20] * len(tl_df),
+                            title=f"Línea de tiempo — REA {rea_busq}",
+                            size_max=18, size=[20] * len(tl_df),
                         )
                         fig_tl.update_layout(
                             yaxis_visible=False,
-                            plot_bgcolor="white",
-                            paper_bgcolor="white",
+                            plot_bgcolor="#FAFBFF", paper_bgcolor="white",
+                            margin=dict(l=20, r=20, t=45, b=20),
                         )
                         st.plotly_chart(fig_tl, use_container_width=True)
 
