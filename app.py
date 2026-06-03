@@ -711,7 +711,7 @@ elif pagina == "Programar Visita":
             _visitas_existentes[_visitas_existentes["ESTADO"] == "Pendiente"]["REA"].dropna().astype(str).str.strip()
         )
 
-    tab_rea, tab_sin_rea = st.tabs(["🔎 Con REA", "📍 Sin REA"])
+    tab_rea, tab_sin_rea = st.tabs(["🔎 Con REA", "📍 Sin REA"], key="tabs_prog")
 
     # ── TAB CON REA ──────────────────────────────────────────────
     with tab_rea:
@@ -1140,7 +1140,7 @@ elif pagina == "Visitas Programadas":
         st.caption(f"**{len(df_f)} visitas pendientes** con los filtros actuales.")
 
         # ── TABLA ─────────────────────────────────────────────
-        tab_lista, tab_eliminar = st.tabs(["📋 Lista y Mapa", "🗑️ Eliminar predio"])
+        tab_lista, tab_eliminar = st.tabs(["📋 Lista y Mapa", "🗑️ Eliminar predio"], key="tabs_vp")
 
         with tab_lista:
             show_cols = [c for c in [
@@ -1159,20 +1159,12 @@ elif pagina == "Visitas Programadas":
                 "ESTADO_REA": st.column_config.TextColumn("Estado REA"),
             }
 
-            sel_indices = []
-            try:
-                _ev = st.dataframe(
-                    df_f[show_cols].reset_index(drop=True),
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config=col_cfg,
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    key="vp_tabla_sel",
-                )
-                sel_indices = _ev.selection.rows if hasattr(_ev, "selection") and _ev.selection.rows else []
-            except TypeError:
-                st.dataframe(df_f[show_cols], use_container_width=True, hide_index=True, column_config=col_cfg)
+            st.dataframe(
+                df_f[show_cols].reset_index(drop=True),
+                use_container_width=True,
+                hide_index=True,
+                column_config=col_cfg,
+            )
 
             # Exportar Excel
             export_cols = [c for c in [
@@ -1196,13 +1188,10 @@ elif pagina == "Visitas Programadas":
 
             # ── MAPA ─────────────────────────────────────────
             st.markdown('<div class="section-title">Mapa de visitas pendientes</div>', unsafe_allow_html=True)
-            if sel_indices:
-                _sel_nv = df_f.iloc[sel_indices[0]].get("NUM_VISITA", "")
-                st.caption(f"Predio seleccionado: **{_sel_nv}** — punto naranja en el mapa.")
 
             df_map = df_f.copy()
-            df_map["_lat"] = pd.to_numeric(df_map.get("LAT_M"), errors="coerce")
-            df_map["_lon"] = pd.to_numeric(df_map.get("LON_M"), errors="coerce")
+            df_map["_lat"] = pd.to_numeric(df_map["LAT_M"] if "LAT_M" in df_map.columns else None, errors="coerce")
+            df_map["_lon"] = pd.to_numeric(df_map["LON_M"] if "LON_M" in df_map.columns else None, errors="coerce")
             if "LATITUD_MANUAL" in df_map.columns:
                 df_map["_lat"] = df_map["_lat"].fillna(pd.to_numeric(df_map["LATITUD_MANUAL"], errors="coerce"))
                 df_map["_lon"] = df_map["_lon"].fillna(pd.to_numeric(df_map["LONGITUD_MANUAL"], errors="coerce"))
@@ -1212,69 +1201,41 @@ elif pagina == "Visitas Programadas":
             if df_map_clean.empty:
                 st.info("No hay coordenadas disponibles para los predios filtrados.")
             else:
+                import pydeck as pdk
                 n_sin_coord = len(df_map) - len(df_map_clean)
                 if n_sin_coord > 0:
                     st.caption(f"⚠️ {n_sin_coord} predio(s) sin coordenadas no aparecen en el mapa.")
 
-                try:
-                    import pydeck as pdk
+                df_pdk = df_map_clean[["_lat", "_lon", "NUM_VISITA"]].rename(
+                    columns={"_lat": "latitude", "_lon": "longitude"}
+                ).copy()
+                df_pdk["tooltip"] = df_pdk["NUM_VISITA"].astype(str)
 
-                    dir_col = df_map_clean["DIRECCION_M"].fillna("") if "DIRECCION_M" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
-                    tec_col = df_map_clean["TECNICOS"].fillna("") if "TECNICOS" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
-                    nv_col  = df_map_clean["NUM_VISITA"].fillna("") if "NUM_VISITA" in df_map_clean.columns else pd.Series("", index=df_map_clean.index)
-                    df_map_clean["tooltip"] = nv_col + " | " + df_map_clean["REA"].fillna("") + "\n" + dir_col + "\n" + tec_col
+                layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=df_pdk,
+                    get_position=["longitude", "latitude"],
+                    get_color=[204, 0, 0, 200],
+                    get_radius=80,
+                    pickable=True,
+                )
 
-                    # Determine selected NUM_VISITA for highlight
-                    _sel_nv_map = df_f.iloc[sel_indices[0]].get("NUM_VISITA", "") if sel_indices else None
+                view = pdk.ViewState(
+                    latitude=float(df_pdk["latitude"].mean()),
+                    longitude=float(df_pdk["longitude"].mean()),
+                    zoom=12,
+                    pitch=0,
+                )
 
-                    df_base = df_map_clean[["_lat", "_lon", "tooltip", "NUM_VISITA"]].rename(columns={"_lat": "lat", "_lon": "lon"})
-                    df_base["_sel"] = df_base["NUM_VISITA"] == _sel_nv_map
-
-                    layer_base = pdk.Layer(
-                        "ScatterplotLayer",
-                        data=df_base[~df_base["_sel"]][["lat", "lon", "tooltip"]],
-                        get_position="[lon, lat]",
-                        get_color=[204, 0, 0, 200],
-                        get_radius=55,
-                        radius_min_pixels=6,
-                        radius_max_pixels=16,
-                        pickable=True,
-                    )
-
-                    layers = [layer_base]
-
-                    if _sel_nv_map and df_base["_sel"].any():
-                        layer_hl = pdk.Layer(
-                            "ScatterplotLayer",
-                            data=df_base[df_base["_sel"]][["lat", "lon", "tooltip"]],
-                            get_position="[lon, lat]",
-                            get_color=[255, 140, 0, 255],
-                            get_radius=90,
-                            radius_min_pixels=12,
-                            radius_max_pixels=28,
-                            pickable=True,
-                        )
-                        layers.append(layer_hl)
-                        _hl_row = df_base[df_base["_sel"]].iloc[0]
-                        view = pdk.ViewState(latitude=_hl_row["lat"], longitude=_hl_row["lon"], zoom=15, pitch=0)
-                    else:
-                        view = pdk.ViewState(
-                            latitude=df_map_clean["_lat"].mean(),
-                            longitude=df_map_clean["_lon"].mean(),
-                            zoom=12, pitch=0,
-                        )
-
-                    st.pydeck_chart(pdk.Deck(
-                        layers=layers,
+                st.pydeck_chart(
+                    pdk.Deck(
+                        layers=[layer],
                         initial_view_state=view,
-                        tooltip={"text": "{tooltip}"},
+                        tooltip={"text": "Visita: {tooltip}"},
                         map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-                    ))
-                except ImportError:
-                    st.map(
-                        df_map_clean.rename(columns={"_lat": "latitude", "_lon": "longitude"})[["latitude", "longitude"]],
-                        zoom=11,
-                    )
+                    ),
+                    use_container_width=True,
+                )
 
         # ── ELIMINAR PREDIO ───────────────────────────────────
         with tab_eliminar:
@@ -1728,7 +1689,7 @@ elif pagina == "Indicadores":
     resultados = load_resultados()
     tecnicos_df = load_tecnicos()
 
-    tab_gen, tab_tec, tab_pred, tab_rep = st.tabs(["📊 General", "👤 Por Técnico", "🏘️ Por Predio", "📥 Reporte Excel"])
+    tab_gen, tab_tec, tab_pred, tab_rep = st.tabs(["📊 General", "👤 Por Técnico", "🏘️ Por Predio", "📥 Reporte Excel"], key="tabs_ind")
 
     # ── TAB GENERAL ───────────────────────────────────────────
     with tab_gen:
