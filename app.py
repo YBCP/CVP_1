@@ -78,6 +78,11 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
+    /* Bajar contenido para que no quede tapado por la barra superior de Streamlit */
+    .block-container,
+    [data-testid="stMainBlockContainer"] {{
+        padding-top: 1rem !important;
+    }}
     /* Sidebar background */
     [data-testid="stSidebar"] {{
         background-color: {COLOR_PRIMARY};
@@ -93,8 +98,8 @@ st.markdown(
     .cvp-header {{
         background-color: {COLOR_PRIMARY};
         color: white;
-        padding: 18px 24px;
-        border-radius: 8px;
+        padding: 14px 24px 16px;
+        border-radius: 0 0 8px 8px;
         margin-bottom: 20px;
     }}
     .cvp-header h1 {{
@@ -189,6 +194,7 @@ def load_maestro():
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=20, show_spinner=False)
 def load_visitas():
     sb = get_supabase()
     if sb:
@@ -223,6 +229,7 @@ def _empty_visitas():
     )
 
 
+@st.cache_data(ttl=20, show_spinner=False)
 def load_resultados():
     sb = get_supabase()
     if sb:
@@ -276,6 +283,7 @@ def load_tecnicos():
 
 
 def save_visitas(df):
+    load_visitas.clear()
     df.to_csv(VISITAS_PATH, index=False)
     sb = get_supabase()
     if sb and not df.empty:
@@ -287,6 +295,7 @@ def save_visitas(df):
 
 
 def save_resultados(df):
+    load_resultados.clear()
     df.to_csv(RESULTADOS_PATH, index=False)
     sb = get_supabase()
     if sb and not df.empty:
@@ -298,6 +307,7 @@ def save_resultados(df):
 
 
 def delete_visita_supabase(num_visita: str):
+    load_visitas.clear()
     sb = get_supabase()
     if sb:
         try:
@@ -1216,7 +1226,9 @@ elif pagina == "Visitas Programadas":
                     data=df_pdk,
                     get_position=["longitude", "latitude"],
                     get_color=[204, 0, 0, 200],
-                    get_radius=80,
+                    get_radius=60,
+                    radius_min_pixels=5,
+                    radius_max_pixels=18,
                     pickable=True,
                 )
 
