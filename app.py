@@ -78,10 +78,12 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
-    /* Bajar contenido para que no quede tapado por la barra superior de Streamlit */
-    .block-container,
+    /* Ocultar la barra superior de Streamlit para que no tape el título */
+    header[data-testid="stHeader"] {{
+        display: none !important;
+    }}
     [data-testid="stMainBlockContainer"] {{
-        padding-top: 1rem !important;
+        padding-top: 0.5rem !important;
     }}
     /* Sidebar background */
     [data-testid="stSidebar"] {{
@@ -98,8 +100,8 @@ st.markdown(
     .cvp-header {{
         background-color: {COLOR_PRIMARY};
         color: white;
-        padding: 14px 24px 16px;
-        border-radius: 0 0 8px 8px;
+        padding: 18px 24px;
+        border-radius: 8px;
         margin-bottom: 20px;
     }}
     .cvp-header h1 {{
@@ -170,12 +172,18 @@ st.markdown(
 @st.cache_resource(show_spinner=False)
 def get_supabase():
     try:
-        from supabase import create_client
+        from supabase import create_client, ClientOptions
         url = st.secrets["SUPABASE_URL"]
         key = st.secrets["SUPABASE_KEY"]
-        return create_client(url, key)
+        return create_client(url, key, options=ClientOptions(postgrest_client_timeout=15))
     except Exception:
-        return None
+        try:
+            from supabase import create_client
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+            return create_client(url, key)
+        except Exception:
+            return None
 
 
 @st.cache_data(show_spinner=False)
@@ -194,7 +202,7 @@ def load_maestro():
         return pd.DataFrame()
 
 
-@st.cache_data(ttl=20, show_spinner=False)
+@st.cache_data(ttl=20, show_spinner="Cargando visitas...")
 def load_visitas():
     sb = get_supabase()
     if sb:
@@ -205,8 +213,8 @@ def load_visitas():
                 df = df.drop(columns=["id"], errors="ignore")
                 df = df.astype(str).replace("None", "").replace("nan", "")
                 return df
-        except Exception as e:
-            st.warning(f"Supabase (visitas): {e}")
+        except Exception:
+            pass
     # Fallback CSV
     try:
         df = pd.read_csv(VISITAS_PATH, dtype=str)
@@ -229,7 +237,7 @@ def _empty_visitas():
     )
 
 
-@st.cache_data(ttl=20, show_spinner=False)
+@st.cache_data(ttl=20, show_spinner="Cargando resultados...")
 def load_resultados():
     sb = get_supabase()
     if sb:
@@ -240,8 +248,8 @@ def load_resultados():
                 df = df.drop(columns=["id"], errors="ignore")
                 df = df.astype(str).replace("None", "").replace("nan", "")
                 return df
-        except Exception as e:
-            st.warning(f"Supabase (resultados): {e}")
+        except Exception:
+            pass
     # Fallback CSV
     try:
         df = pd.read_csv(RESULTADOS_PATH, dtype=str)
